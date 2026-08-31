@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AfriBizInsights.API/AfriBizInsights.API.csproj" />
+  <Project Path="AfriBizInsights.Core/AfriBizInsights.Core.csproj" />
+  <Project Path="AfriBizInsights.Infrastructure/AfriBizInsights.Infrastructure.csproj" />
+  <Project Path="AfriBizInsights.Services/AfriBizInsights.Services.csproj" />
+</Solution>

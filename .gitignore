@@ -1,0 +1,27 @@
+## --- .NET & Visual Studio ---
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## --- Node.js & React Frontend ---
+**/node_modules/
+**/dist/
+**/dist-ssr/
+*.local
+
+## --- Python & Machine Learning ---
+**/venv/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+## --- OS & Environment ---
+.env
+.DS_Store
+Thumbs.db
