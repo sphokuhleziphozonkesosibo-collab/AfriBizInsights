@@ -18,7 +18,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(origin => true) // Allows Vercel, localhost, and custom domains
+        policy.SetIsOriginAllowed(origin => true)
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -89,12 +89,16 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 6. HTTP Pipeline
-if (app.Environment.IsDevelopment())
+// 6. Enable Swagger in BOTH Development and Cloud Production
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "AfriBiz Insights API v1");
+    c.RoutePrefix = "swagger";
+});
+
+// Live Health Check Endpoint
+app.MapGet("/", () => "AfriBiz Insights Backend API is Live on Azure!");
 
 app.UseHttpsRedirection();
 
