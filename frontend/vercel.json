@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "https://afribiz-api-spho-dkexabfvcscpewhn.southafricanorth-01.azurewebsites.net/api/:match*"
+    }
+  ]
+}

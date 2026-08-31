@@ -13,12 +13,12 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configure CORS
+// 1. Configure CORS (Allows Vercel Cloud Domain, Localhost, and Mobile clients)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.SetIsOriginAllowed(origin => true) // Allows Vercel, localhost, and custom domains
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
@@ -75,7 +75,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// AUTOMATIC MIGRATION ON SERVER STARTUP
+// AUTOMATIC DATABASE MIGRATION ON SERVER STARTUP
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -85,7 +85,7 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[Startup Warning] Auto-migration: {ex.Message}");
+        Console.WriteLine($"[Startup Info] Auto-migration: {ex.Message}");
     }
 }
 
@@ -97,6 +97,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable CORS
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
