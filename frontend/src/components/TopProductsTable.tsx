@@ -1,6 +1,6 @@
 import React from 'react';
 import type { TopProduct } from '../services/api';
-import { Package, ArrowUpRight } from 'lucide-react';
+import { Package } from 'lucide-react';
 
 interface TopProductsTableProps {
   products: TopProduct[];

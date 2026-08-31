@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Lock, Mail, Store, User, Globe, AlertCircle, Loader2 } from 'lucide-react';
+import { LayoutDashboard, Lock, Mail, Store, User, AlertCircle, Loader2 } from 'lucide-react';
 import { loginUser, registerBusiness, type AuthUser } from '../services/api';
 
 interface AuthModalProps {
@@ -18,7 +18,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   const [ownerFullName, setOwnerFullName] = useState('');
   const [country, setCountry] = useState('South Africa');
   const [currency, setCurrency] = useState('ZAR');
-  const [industry, setIndustry] = useState('Retail');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           businessName,
           currency,
           country,
-          industry,
+          industry: 'Retail',
           ownerFullName,
           email,
           password,
@@ -41,7 +40,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
         user = await loginUser({ email, password });
       }
 
-      // Save token & user to localStorage
       localStorage.setItem('afribiz_token', user.token);
       localStorage.setItem('afribiz_user', JSON.stringify(user));
       onSuccess(user);
@@ -58,7 +56,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-slate-100 animate-in fade-in zoom-in duration-200">
-        {/* Brand Header */}
         <div className="text-center mb-6">
           <div className="inline-flex p-3 rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/30 mb-3">
             <LayoutDashboard className="h-7 w-7" />
@@ -73,7 +70,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           </p>
         </div>
 
-        {/* Error Notification */}
         {errorMsg && (
           <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
@@ -81,7 +77,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           </div>
         )}
 
-        {/* Auth Form */}
         <form onSubmit={handleSubmit} className="space-y-3.5 text-xs">
           {isRegister && (
             <>
@@ -196,7 +191,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onSuccess }) => {
           </button>
         </form>
 
-        {/* Toggle Switch */}
         <div className="mt-6 text-center text-xs text-slate-500">
           {isRegister ? (
             <p>
