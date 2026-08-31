@@ -1,16 +1,21 @@
 import React from 'react';
-import { LayoutDashboard, UploadCloud, Store } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, Store, LogOut, PlusCircle, FileSpreadsheet, User as UserIcon } from 'lucide-react';
+import type { AuthUser } from '../services/api';
 
 interface NavbarProps {
+  user: AuthUser | null;
   onOpenUpload: () => void;
-  businessName?: string;
-  currency?: string;
+  onOpenExpense: () => void;
+  onExportReport: () => void;
+  onLogout: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
+  user,
   onOpenUpload,
-  businessName = 'Mzansi Trendz Store',
-  currency = 'ZAR',
+  onOpenExpense,
+  onExportReport,
+  onLogout,
 }) => {
   return (
     <header className="bg-slate-900 text-white shadow-md sticky top-0 z-40">
@@ -18,7 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="flex justify-between items-center h-16">
           {/* Logo & Brand */}
           <div className="flex items-center space-x-3">
-            <div className="bg-indigo-600 p-2 rounded-lg text-white shadow-sm">
+            <div className="bg-indigo-600 p-2 rounded-xl text-white shadow-sm">
               <LayoutDashboard className="h-6 w-6" />
             </div>
             <div>
@@ -28,22 +33,60 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Store Info & Action Buttons */}
-          <div className="flex items-center space-x-4">
-            <div className="hidden sm:flex items-center space-x-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-300">
-              <Store className="h-3.5 w-3.5 text-indigo-400" />
-              <span className="font-medium text-slate-200">{businessName}</span>
-              <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono text-[10px]">
-                {currency}
-              </span>
-            </div>
+          <div className="flex items-center space-x-2.5">
+            {user && (
+              <>
+                <div className="hidden md:flex items-center space-x-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-300">
+                  <Store className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="font-medium text-slate-200">{user.businessName}</span>
+                  <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-mono text-[10px] font-bold">
+                    {user.currency}
+                  </span>
+                </div>
 
+                <div className="hidden lg:flex items-center space-x-1.5 text-xs text-slate-400 px-2">
+                  <UserIcon className="h-3.5 w-3.5" />
+                  <span>{user.fullName}</span>
+                </div>
+              </>
+            )}
+
+            {/* Export Report Button */}
+            <button
+              onClick={onExportReport}
+              className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
+              <span className="hidden sm:inline">Executive Report</span>
+            </button>
+
+            {/* Record Expense Button */}
+            <button
+              onClick={onOpenExpense}
+              className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <PlusCircle className="h-4 w-4 text-rose-400" />
+              <span className="hidden sm:inline">Record Expense</span>
+            </button>
+
+            {/* Import Sales Button */}
             <button
               onClick={onOpenUpload}
-              className="inline-flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+              className="inline-flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
             >
               <UploadCloud className="h-4 w-4" />
-              <span>Import Sales Data</span>
+              <span>Import Sales</span>
             </button>
+
+            {user && (
+              <button
+                onClick={onLogout}
+                title="Logout"
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -20,6 +20,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Sale> Sales => Set<Sale>();
     public DbSet<SaleItem> SaleItems => Set<SaleItem>();
+    public DbSet<Expense> Expenses => Set<Expense>();
     public DbSet<BusinessAlert> BusinessAlerts => Set<BusinessAlert>();
     public DbSet<Prediction> Predictions => Set<Prediction>();
 
@@ -27,16 +28,20 @@ public class ApplicationDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Global Query Filters (only filter when a tenant is actively resolved)
+        // Global Query Filters
         modelBuilder.Entity<Product>().HasQueryFilter(p => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || p.TenantId == _tenantProvider.GetCurrentTenantId());
         modelBuilder.Entity<Sale>().HasQueryFilter(s => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || s.TenantId == _tenantProvider.GetCurrentTenantId());
         modelBuilder.Entity<SaleItem>().HasQueryFilter(si => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || si.TenantId == _tenantProvider.GetCurrentTenantId());
+        modelBuilder.Entity<Expense>().HasQueryFilter(ex => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || ex.TenantId == _tenantProvider.GetCurrentTenantId());
         modelBuilder.Entity<BusinessAlert>().HasQueryFilter(a => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || a.TenantId == _tenantProvider.GetCurrentTenantId());
         modelBuilder.Entity<Prediction>().HasQueryFilter(pr => _tenantProvider == null || _tenantProvider.GetCurrentTenantId() == null || pr.TenantId == _tenantProvider.GetCurrentTenantId());
 
-        // Indexes for speed
+        // Indexes for performance
         modelBuilder.Entity<Sale>()
             .HasIndex(s => new { s.TenantId, s.SaleDate });
+
+        modelBuilder.Entity<Expense>()
+            .HasIndex(e => new { e.TenantId, e.ExpenseDate });
 
         modelBuilder.Entity<Product>()
             .HasIndex(p => new { p.TenantId, p.SKU });

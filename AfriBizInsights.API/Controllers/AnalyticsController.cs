@@ -1,4 +1,5 @@
-﻿using AfriBizInsights.Core.Interfaces;
+﻿using AfriBizInsights.Core.DTOs.Expenses;
+using AfriBizInsights.Core.Interfaces;
 using AfriBizInsights.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -98,6 +99,20 @@ public class AnalyticsController : ControllerBase
         }
     }
 
+    [HttpGet("dead-stock")]
+    public async Task<IActionResult> GetDeadStock([FromQuery] int days = 30)
+    {
+        try
+        {
+            var deadStock = await _analyticsService.GetDeadStockProductsAsync(days);
+            return Ok(deadStock);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("forecasts")]
     public async Task<IActionResult> GetProductDemandForecasts()
     {
@@ -106,6 +121,34 @@ public class AnalyticsController : ControllerBase
             var tenantId = await ResolveTenantIdAsync();
             var forecasts = await _mlServiceClient.GetProductDemandForecastsAsync(tenantId);
             return Ok(forecasts);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("expenses")]
+    public async Task<IActionResult> AddExpense([FromBody] CreateExpenseDto dto)
+    {
+        try
+        {
+            var expense = await _analyticsService.AddExpenseAsync(dto);
+            return Ok(expense);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("expenses")]
+    public async Task<IActionResult> GetRecentExpenses([FromQuery] int limit = 10)
+    {
+        try
+        {
+            var expenses = await _analyticsService.GetRecentExpensesAsync(limit);
+            return Ok(expenses);
         }
         catch (Exception ex)
         {

@@ -14,30 +14,51 @@ import { TrendingUp } from 'lucide-react';
 interface SalesChartProps {
   data: SalesTrend[];
   currency?: string;
+  selectedDays: number;
+  onDaysChange: (days: number) => void;
 }
 
-export const SalesChart: React.FC<SalesChartProps> = ({ data, currency = 'ZAR' }) => {
+export const SalesChart: React.FC<SalesChartProps> = ({
+  data,
+  currency = 'ZAR',
+  selectedDays,
+  onDaysChange,
+}) => {
   const currencySymbol = currency === 'ZAR' ? 'R' : currency;
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
-      <div className="flex justify-between items-center mb-6">
+    <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-indigo-600" />
-            Revenue Trend
+            Revenue Velocity & Trajectory
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">Historical revenue trajectory over time</p>
         </div>
-        <span className="text-xs bg-slate-100 text-slate-600 font-semibold px-2.5 py-1 rounded-md">
-          Last 30 Days
-        </span>
+
+        {/* Time Range Filter Pills */}
+        <div className="inline-flex rounded-xl bg-slate-100 p-1 text-xs font-bold text-slate-600 self-start sm:self-auto">
+          {[7, 30, 90].map((days) => (
+            <button
+              key={days}
+              onClick={() => onDaysChange(days)}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                selectedDays === days
+                  ? 'bg-white text-indigo-600 shadow-xs'
+                  : 'hover:text-slate-900'
+              }`}
+            >
+              {days}D
+            </button>
+          ))}
+        </div>
       </div>
 
       {data.length === 0 ? (
         <div className="h-64 flex flex-col items-center justify-center text-slate-400">
-          <p className="text-sm">No transaction history recorded yet.</p>
-          <p className="text-xs mt-1 text-slate-400">Upload a sales CSV to see trends.</p>
+          <p className="text-sm">No transaction history for this period.</p>
+          <p className="text-xs mt-1 text-slate-400">Import sales records to generate velocity trends.</p>
         </div>
       ) : (
         <div className="h-72 w-full">
@@ -66,7 +87,7 @@ export const SalesChart: React.FC<SalesChartProps> = ({ data, currency = 'ZAR' }
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
                     return (
-                      <div className="bg-slate-900 text-white p-3 rounded-lg shadow-xl text-xs border border-slate-800">
+                      <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs border border-slate-800">
                         <p className="text-slate-400 font-medium mb-1">{label}</p>
                         <p className="font-bold text-indigo-300">
                           Revenue: {currencySymbol} {Number(payload[0].value).toLocaleString()}

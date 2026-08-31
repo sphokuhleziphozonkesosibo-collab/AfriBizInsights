@@ -4,43 +4,68 @@ import { KpiCards } from './components/KpiCards';
 import { SalesChart } from './components/SalesChart';
 import { AlertsList } from './components/AlertsList';
 import { TopProductsTable } from './components/TopProductsTable';
+import { DeadStockCard } from './components/DeadStockCard';
 import { ForecastCards } from './components/ForecastCards';
 import { UploadModal } from './components/UploadModal';
+import { ExpenseModal } from './components/ExpenseModal';
+import { AuthModal } from './components/AuthModal';
+import { exportBusinessReport } from './services/reportExport';
 import {
   getDashboardSummary,
   getSalesTrend,
   getTopProducts,
   getBusinessAlerts,
+  getDeadStockProducts,
   getProductForecasts,
   type DashboardSummary,
   type SalesTrend,
   type TopProduct,
   type BusinessAlert,
+  type DeadStockProduct,
   type DemandForecast,
+  type AuthUser,
 } from './services/api';
 import { RefreshCw, AlertCircle } from 'lucide-react';
 
 export function App() {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<SalesTrend[]>([]);
+  const [selectedDays, setSelectedDays] = useState<number>(30);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [alerts, setAlerts] = useState<BusinessAlert[]>([]);
+  const [deadStock, setDeadStock] = useState<DeadStockProduct[]>([]);
   const [forecasts, setForecasts] = useState<DemandForecast[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isExpenseOpen, setIsExpenseOpen] = useState(false);
 
-  const fetchDashboardData = async () => {
+  useEffect(() => {
+    const savedUser = localStorage.getItem('afribiz_user');
+    const token = localStorage.getItem('afribiz_token');
+    if (savedUser && token) {
+      try {
+        const user = JSON.parse(savedUser);
+        setCurrentUser(user);
+      } catch {
+        localStorage.clear();
+      }
+    }
+  }, []);
+
+  const fetchDashboardData = async (days = selectedDays) => {
+    if (!currentUser) return;
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch all telemetry & ML predictions in parallel
-      const [sumData, trendData, prodData, alertData, forecastData] = await Promise.all([
+      const [sumData, trendData, prodData, alertData, deadData, forecastData] = await Promise.all([
         getDashboardSummary(),
-        getSalesTrend(30),
+        getSalesTrend(days),
         getTopProducts(5),
         getBusinessAlerts(),
+        getDeadStockProducts(30),
         getProductForecasts(),
       ]);
 
@@ -48,28 +73,55 @@ export function App() {
       setTrends(trendData);
       setTopProducts(prodData);
       setAlerts(alertData);
+      setDeadStock(deadData);
       setForecasts(forecastData);
     } catch (err: any) {
       console.error('Failed to load dashboard data:', err);
-      setError(
-        'Unable to connect to the AfriBiz Backend API. Please ensure Visual Studio is running the API on port 7011.'
-      );
+      setError('Failed to fetch data for this business account. Verify backend API is running.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (currentUser) {
+      fetchDashboardData(selectedDays);
+    }
+  }, [currentUser, selectedDays]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('afribiz_token');
+    localStorage.removeItem('afribiz_user');
+    setCurrentUser(null);
+    setSummary(null);
+    setTrends([]);
+    setTopProducts([]);
+    setAlerts([]);
+    setDeadStock([]);
+    setForecasts([]);
+  };
+
+  const handleExportReport = () => {
+    exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts);
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+      {!currentUser && (
+        <AuthModal
+          onSuccess={(user) => {
+            setCurrentUser(user);
+          }}
+        />
+      )}
+
       {/* Top Navigation */}
       <Navbar
+        user={currentUser}
         onOpenUpload={() => setIsUploadOpen(true)}
-        businessName="Mzansi Trendz Store"
-        currency="ZAR"
+        onOpenExpense={() => setIsExpenseOpen(true)}
+        onExportReport={handleExportReport}
+        onLogout={handleLogout}
       />
 
       {/* Main Dashboard Content */}
@@ -78,24 +130,23 @@ export function App() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900">
-              Business Intelligence & Predictive Radar
+              Financial Telemetry & Profitability Radar
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Descriptive financial telemetry & Python ML demand forecasting
+              Gross sales, operational expenses, True Net Profit & ML demand forecasts
             </p>
           </div>
 
           <button
-            onClick={fetchDashboardData}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
+            onClick={() => fetchDashboardData(selectedDays)}
+            disabled={loading || !currentUser}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>Refresh Telemetry</span>
           </button>
         </div>
 
-        {/* Error Notification */}
         {error && (
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
@@ -106,35 +157,53 @@ export function App() {
           </div>
         )}
 
-        {/* 1. KPI Summary Cards */}
-        <KpiCards summary={summary} currency="ZAR" />
+        {/* 1. Profitability & Financial Health Cards */}
+        <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
 
-        {/* 2. AI Machine Learning Demand Forecasting Section */}
+        {/* 2. Dead Stock & Trapped Cash Radar */}
+        <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />
+
+        {/* 3. AI Machine Learning Demand Forecasting Section */}
         <ForecastCards forecasts={forecasts} />
 
-        {/* 3. Middle Row: Sales Trend Chart & Smart Alerts */}
+        {/* 4. Middle Row: Sales Trend Chart & Smart Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <SalesChart data={trends} currency="ZAR" />
+            <SalesChart
+              data={trends}
+              currency={currentUser?.currency || 'ZAR'}
+              selectedDays={selectedDays}
+              onDaysChange={(d) => setSelectedDays(d)}
+            />
           </div>
           <div className="lg:col-span-1">
             <AlertsList alerts={alerts} />
           </div>
         </div>
 
-        {/* 4. Bottom Row: Top Products Table */}
+        {/* 5. Bottom Row: Top Products Table */}
         <div>
-          <TopProductsTable products={topProducts} currency="ZAR" />
+          <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
         </div>
       </main>
 
-      {/* CSV / Excel Ingestion Modal */}
+      {/* Smart Ingestion Wizard Modal with Live Preview */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
         onSuccess={() => {
-          fetchDashboardData();
+          fetchDashboardData(selectedDays);
         }}
+      />
+
+      {/* Expense Modal */}
+      <ExpenseModal
+        isOpen={isExpenseOpen}
+        onClose={() => setIsExpenseOpen(false)}
+        onSuccess={() => {
+          fetchDashboardData(selectedDays);
+        }}
+        currency={currentUser?.currency || 'ZAR'}
       />
     </div>
   );
