@@ -1,4 +1,5 @@
 ﻿using AfriBizInsights.Core.DTOs.Expenses;
+using AfriBizInsights.Core.DTOs.Products;
 using AfriBizInsights.Core.Interfaces;
 using AfriBizInsights.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -149,6 +150,34 @@ public class AnalyticsController : ControllerBase
         {
             var expenses = await _analyticsService.GetRecentExpensesAsync(limit);
             return Ok(expenses);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("products")]
+    public async Task<IActionResult> GetAllProducts()
+    {
+        try
+        {
+            var products = await _analyticsService.GetAllProductsAsync();
+            return Ok(products);
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("products/{productId:guid}/stock")]
+    public async Task<IActionResult> UpdateProductStock(Guid productId, [FromBody] UpdateProductStockDto dto)
+    {
+        try
+        {
+            var updated = await _analyticsService.UpdateProductStockAsync(productId, dto);
+            return Ok(updated);
         }
         catch (Exception ex)
         {

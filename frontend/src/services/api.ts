@@ -39,6 +39,26 @@ export interface DashboardSummary {
   bestSellingProduct: string;
   lowStockProductCount: number;
   revenueGrowthPercentage: number;
+  uniqueCustomerCount: number;
+  repeatCustomerPercentage: number;
+}
+
+export interface Product {
+  productId: string;
+  sku?: string;
+  name: string;
+  category: string;
+  costPrice: number;
+  sellingPrice: number;
+  currentStock: number;
+  reorderLevel: number;
+}
+
+export interface UpdateProductStockDto {
+  currentStock: number;
+  reorderLevel?: number;
+  sellingPrice?: number;
+  costPrice?: number;
 }
 
 export interface Expense {
@@ -165,6 +185,20 @@ export const getDeadStockProducts = async (days: number = 30): Promise<DeadStock
 
 export const getProductForecasts = async (): Promise<DemandForecast[]> => {
   const response = await apiClient.get<DemandForecast[]>('/analytics/forecasts');
+  return response.data;
+};
+
+// --- PRODUCTS & INVENTORY ---
+export const getAllProducts = async (): Promise<Product[]> => {
+  const response = await apiClient.get<Product[]>('/analytics/products');
+  return response.data;
+};
+
+export const updateProductStock = async (
+  productId: string,
+  dto: UpdateProductStockDto
+): Promise<Product> => {
+  const response = await apiClient.put<Product>(`/analytics/products/${productId}/stock`, dto);
   return response.data;
 };
 

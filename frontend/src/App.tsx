@@ -8,6 +8,7 @@ import { DeadStockCard } from './components/DeadStockCard';
 import { ForecastCards } from './components/ForecastCards';
 import { UploadModal } from './components/UploadModal';
 import { ExpenseModal } from './components/ExpenseModal';
+import { InventoryModal } from './components/InventoryModal';
 import { AuthModal } from './components/AuthModal';
 import { exportBusinessReport } from './services/reportExport';
 import {
@@ -40,6 +41,7 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('afribiz_user');
@@ -120,6 +122,7 @@ export function App() {
         user={currentUser}
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenExpense={() => setIsExpenseOpen(true)}
+        onOpenInventory={() => setIsInventoryOpen(true)}
         onExportReport={handleExportReport}
         onLogout={handleLogout}
       />
@@ -157,7 +160,7 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Profitability & Financial Health Cards */}
+        {/* 1. Profitability & Financial Health Cards with Customer Retention */}
         <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
 
         {/* 2. Dead Stock & Trapped Cash Radar */}
@@ -200,6 +203,16 @@ export function App() {
       <ExpenseModal
         isOpen={isExpenseOpen}
         onClose={() => setIsExpenseOpen(false)}
+        onSuccess={() => {
+          fetchDashboardData(selectedDays);
+        }}
+        currency={currentUser?.currency || 'ZAR'}
+      />
+
+      {/* Stock & Price Manager Modal */}
+      <InventoryModal
+        isOpen={isInventoryOpen}
+        onClose={() => setIsInventoryOpen(false)}
         onSuccess={() => {
           fetchDashboardData(selectedDays);
         }}

@@ -1,5 +1,6 @@
 ﻿using AfriBizInsights.Core.DTOs.Analytics;
 using AfriBizInsights.Core.DTOs.Expenses;
+using AfriBizInsights.Core.DTOs.Products;
 using AfriBizInsights.Core.Entities;
 using AfriBizInsights.Core.Interfaces;
 using AfriBizInsights.Infrastructure.Data;
@@ -74,6 +75,24 @@ public class AnalyticsService : IAnalyticsService
         decimal grossMargin = totalRevenue > 0 ? Math.Round((grossProfit / totalRevenue) * 100, 1) : 0;
         decimal netMargin = totalRevenue > 0 ? Math.Round((netProfit / totalRevenue) * 100, 1) : 0;
 
+        // Customer Retention Analytics
+        var identifiedCustomers = sales
+            .Where(s => !string.IsNullOrWhiteSpace(s.CustomerIdentifier))
+            .Select(s => s.CustomerIdentifier!.Trim())
+            .ToList();
+
+        var uniqueCustomers = identifiedCustomers.Distinct().Count();
+        decimal repeatCustomerPct = 0;
+
+        if (uniqueCustomers > 0)
+        {
+            var repeatCount = identifiedCustomers
+                .GroupBy(c => c)
+                .Count(g => g.Count() > 1);
+
+            repeatCustomerPct = Math.Round(((decimal)repeatCount / uniqueCustomers) * 100, 1);
+        }
+
         var bestSeller = saleItems
             .GroupBy(si => si.ProductId)
             .Select(g => new { ProductId = g.Key, TotalUnits = g.Sum(x => x.Quantity) })
@@ -121,7 +140,64 @@ public class AnalyticsService : IAnalyticsService
             AverageOrderValue = aov,
             BestSellingProduct = bestSellerName,
             LowStockProductCount = lowStockCount,
-            RevenueGrowthPercentage = growthPct
+            RevenueGrowthPercentage = growthPct,
+            UniqueCustomerCount = uniqueCustomers,
+            RepeatCustomerPercentage = repeatCustomerPct
+        };
+    }
+
+    public async Task<List<ProductDto>> GetAllProductsAsync()
+    {
+        var tenantId = await ResolveTenantIdAsync();
+
+        return await _context.Products
+            .IgnoreQueryFilters()
+            .Where(p => p.TenantId == tenantId)
+            .OrderBy(p => p.Name)
+            .Select(p => new ProductDto
+            {
+                ProductId = p.ProductId,
+                SKU = p.SKU,
+                Name = p.Name,
+                Category = p.Category,
+                CostPrice = p.CostPrice,
+                SellingPrice = p.SellingPrice,
+                CurrentStock = p.CurrentStock,
+                ReorderLevel = p.ReorderLevel
+            })
+            .ToListAsync();
+    }
+
+    public async Task<ProductDto> UpdateProductStockAsync(Guid productId, UpdateProductStockDto dto)
+    {
+        var tenantId = await ResolveTenantIdAsync();
+
+        var product = await _context.Products
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.ProductId == productId && p.TenantId == tenantId);
+
+        if (product == null)
+        {
+            throw new Exception("Product not found in this business catalog.");
+        }
+
+        product.CurrentStock = dto.CurrentStock;
+        if (dto.ReorderLevel.HasValue) product.ReorderLevel = dto.ReorderLevel.Value;
+        if (dto.SellingPrice.HasValue) product.SellingPrice = dto.SellingPrice.Value;
+        if (dto.CostPrice.HasValue) product.CostPrice = dto.CostPrice.Value;
+
+        await _context.SaveChangesAsync();
+
+        return new ProductDto
+        {
+            ProductId = product.ProductId,
+            SKU = product.SKU,
+            Name = product.Name,
+            Category = product.Category,
+            CostPrice = product.CostPrice,
+            SellingPrice = product.SellingPrice,
+            CurrentStock = product.CurrentStock,
+            ReorderLevel = product.ReorderLevel
         };
     }
 
@@ -286,7 +362,7 @@ public class AnalyticsService : IAnalyticsService
             });
         }
 
-        // 2. Dead Stock / Trapped Cash Alert
+        // 2. Dead Stock Alert
         var deadStock = await GetDeadStockProductsAsync(30);
         if (deadStock.Any())
         {

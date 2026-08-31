@@ -40,7 +40,6 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIngestionService, IngestionService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
-// Register Python Machine Learning HTTP Client
 builder.Services.AddHttpClient<IMlServiceClient, MlServiceClient>();
 
 // 4. JWT Authentication
@@ -76,7 +75,21 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 6. HTTP Request Pipeline
+// AUTOMATIC MIGRATION ON SERVER STARTUP
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    try
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Startup Warning] Auto-migration: {ex.Message}");
+    }
+}
+
+// 6. HTTP Pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -84,7 +97,6 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();

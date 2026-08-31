@@ -1,11 +1,12 @@
 import React from 'react';
-import { LayoutDashboard, UploadCloud, Store, LogOut, PlusCircle, FileSpreadsheet, User as UserIcon } from 'lucide-react';
+import { LayoutDashboard, UploadCloud, Store, LogOut, PlusCircle, FileSpreadsheet, Boxes, User as UserIcon } from 'lucide-react';
 import type { AuthUser } from '../services/api';
 
 interface NavbarProps {
   user: AuthUser | null;
   onOpenUpload: () => void;
   onOpenExpense: () => void;
+  onOpenInventory: () => void;
   onExportReport: () => void;
   onLogout: () => void;
 }
@@ -14,6 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   user,
   onOpenUpload,
   onOpenExpense,
+  onOpenInventory,
   onExportReport,
   onLogout,
 }) => {
@@ -33,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Store Info & Action Buttons */}
-          <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-2">
             {user && (
               <>
                 <div className="hidden md:flex items-center space-x-2 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-300">
@@ -51,13 +53,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
+            {/* Inventory Manager Button */}
+            <button
+              onClick={onOpenInventory}
+              className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <Boxes className="h-4 w-4 text-indigo-400" />
+              <span className="hidden sm:inline">Stock Manager</span>
+            </button>
+
             {/* Export Report Button */}
             <button
               onClick={onExportReport}
               className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <FileSpreadsheet className="h-4 w-4 text-emerald-400" />
-              <span className="hidden sm:inline">Executive Report</span>
+              <span className="hidden sm:inline">Report</span>
             </button>
 
             {/* Record Expense Button */}
@@ -66,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <PlusCircle className="h-4 w-4 text-rose-400" />
-              <span className="hidden sm:inline">Record Expense</span>
+              <span className="hidden sm:inline">Expense</span>
             </button>
 
             {/* Import Sales Button */}
@@ -75,7 +86,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="inline-flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"
             >
               <UploadCloud className="h-4 w-4" />
-              <span>Import Sales</span>
+              <span>Import</span>
             </button>
 
             {user && (

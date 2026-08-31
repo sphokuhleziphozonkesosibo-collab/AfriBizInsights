@@ -1,5 +1,5 @@
 import React from 'react';
-import { DollarSign, Wallet, Percent, Receipt, ShoppingCart, Award } from 'lucide-react';
+import { DollarSign, Wallet, Percent, Receipt, ShoppingCart, Award, Users } from 'lucide-react';
 import type { DashboardSummary } from '../services/api';
 
 interface KpiCardsProps {
@@ -87,30 +87,44 @@ export const KpiCards: React.FC<KpiCardsProps> = ({ summary, currency = 'ZAR' })
         </div>
       </div>
 
-      {/* 2. Secondary Operational Tier */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-white border border-slate-200 rounded-xl px-5 py-3.5 flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3">
+      {/* 2. Customer Retention & Operational Tier */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-blue-50 text-blue-600 border border-blue-100">
               <ShoppingCart className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-xs text-slate-500">Average Spend / Order:</span>
-              <span className="font-bold text-slate-900 ml-2">
+              <span className="text-[11px] text-slate-500 block">Avg Order Value:</span>
+              <span className="font-bold text-slate-900 text-xs">
                 {currencySymbol} {summary ? summary.averageOrderValue.toLocaleString() : '0'}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl px-5 py-3.5 flex items-center justify-between shadow-2xs">
-          <div className="flex items-center gap-3">
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-purple-50 text-purple-600 border border-purple-100">
+              <Users className="h-4 w-4" />
+            </div>
+            <div>
+              <span className="text-[11px] text-slate-500 block">Customer Retention:</span>
+              <span className="font-bold text-purple-700 text-xs">
+                {summary?.repeatCustomerPercentage ?? 0}% Repeat Buyers ({summary?.uniqueCustomerCount ?? 0} total)
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl px-4 py-3 flex items-center justify-between shadow-2xs">
+          <div className="flex items-center gap-2.5 truncate">
             <div className="p-2 rounded-lg bg-amber-50 text-amber-600 border border-amber-100">
               <Award className="h-4 w-4" />
             </div>
-            <div>
-              <span className="text-xs text-slate-500">Top Selling Item:</span>
-              <span className="font-bold text-slate-900 ml-2">
+            <div className="truncate">
+              <span className="text-[11px] text-slate-500 block">Top Volume Item:</span>
+              <span className="font-bold text-slate-900 text-xs truncate block" title={summary?.bestSellingProduct}>
                 {summary?.bestSellingProduct || 'None'}
               </span>
             </div>

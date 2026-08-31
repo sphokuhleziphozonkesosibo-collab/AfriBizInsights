@@ -48,7 +48,7 @@ public class IngestionService : IIngestionService
             return new IngestionResultDto
             {
                 Success = false,
-                ValidationErrors = new List<string> { "Uploaded file is empty." }
+                ValidationErrors = new List<string> { "Uploaded file stream is empty." }
             };
         }
 
@@ -152,7 +152,6 @@ public class IngestionService : IIngestionService
         var result = new IngestionResultDto { TotalRowsProcessed = records.Count };
         var validationErrors = new List<string>();
 
-        // Safe grouping to prevent duplicate product key collisions
         var productsList = await _context.Products
             .IgnoreQueryFilters()
             .Where(p => p.TenantId == tenantId)
@@ -211,11 +210,17 @@ public class IngestionService : IIngestionService
                     SKU = raw.SKU?.Trim(),
                     SellingPrice = unitPrice,
                     CostPrice = costPrice > 0 ? costPrice : unitPrice * 0.7m,
-                    CurrentStock = 100
+                    CurrentStock = Math.Max(0, 100 - quantity) // Starting stock minus quantity sold
                 };
 
                 await _context.Products.AddAsync(product);
                 existingProducts[productKey] = product;
+                productsModified++;
+            }
+            else
+            {
+                // CRITICAL IMPROVEMENT: Decrement stock as items are sold
+                product.CurrentStock = Math.Max(0, product.CurrentStock - quantity);
                 productsModified++;
             }
 

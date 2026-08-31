@@ -21,4 +21,8 @@ public class DashboardSummaryDto
     public string BestSellingProduct { get; set; } = "None";
     public int LowStockProductCount { get; set; }
     public decimal RevenueGrowthPercentage { get; set; }
+
+    // Customer Telemetry
+    public int UniqueCustomerCount { get; set; }
+    public decimal RepeatCustomerPercentage { get; set; }
 }
