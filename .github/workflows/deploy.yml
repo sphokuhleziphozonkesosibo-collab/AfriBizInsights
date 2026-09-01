@@ -19,8 +19,8 @@ jobs:
         with:
           dotnet-version: '8.x'
 
-      - name: Build Solution
-        run: dotnet build AfriBizInsights.sln --configuration Release
+      - name: Build API Project
+        run: dotnet build AfriBizInsights.API/AfriBizInsights.API.csproj --configuration Release
 
       - name: Publish API Project
         run: dotnet publish AfriBizInsights.API/AfriBizInsights.API.csproj -c Release -o ./publish
