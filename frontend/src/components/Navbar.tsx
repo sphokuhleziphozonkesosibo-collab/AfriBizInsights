@@ -1,5 +1,16 @@
 import React from 'react';
-import { LayoutDashboard, UploadCloud, Store, LogOut, PlusCircle, FileSpreadsheet, Boxes, User as UserIcon } from 'lucide-react';
+import {
+  LayoutDashboard,
+  UploadCloud,
+  Store,
+  LogOut,
+  PlusCircle,
+  FileSpreadsheet,
+  Boxes,
+  MessageSquare,
+  Download,
+  User as UserIcon,
+} from 'lucide-react';
 import type { AuthUser } from '../services/api';
 
 interface NavbarProps {
@@ -7,6 +18,8 @@ interface NavbarProps {
   onOpenUpload: () => void;
   onOpenExpense: () => void;
   onOpenInventory: () => void;
+  onOpenWhatsApp: () => void;
+  onDownloadBackup: () => void;
   onExportReport: () => void;
   onLogout: () => void;
 }
@@ -16,6 +29,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenUpload,
   onOpenExpense,
   onOpenInventory,
+  onOpenWhatsApp,
+  onDownloadBackup,
   onExportReport,
   onLogout,
 }) => {
@@ -53,16 +68,36 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
-            {/* Inventory Manager Button */}
+            {/* WhatsApp Summary */}
+            <button
+              onClick={onOpenWhatsApp}
+              title="Generate WhatsApp Daily Summary"
+              className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <MessageSquare className="h-4 w-4 text-emerald-400" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
+
+            {/* Download Backup */}
+            <button
+              onClick={onDownloadBackup}
+              title="Download Full Store Backup (.csv)"
+              className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            >
+              <Download className="h-4 w-4 text-blue-400" />
+              <span className="hidden sm:inline">Backup</span>
+            </button>
+
+            {/* Stock Manager */}
             <button
               onClick={onOpenInventory}
               className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <Boxes className="h-4 w-4 text-indigo-400" />
-              <span className="hidden sm:inline">Stock Manager</span>
+              <span className="hidden sm:inline">Stock</span>
             </button>
 
-            {/* Export Report Button */}
+            {/* Executive Report */}
             <button
               onClick={onExportReport}
               className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -71,7 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Report</span>
             </button>
 
-            {/* Record Expense Button */}
+            {/* Record Expense */}
             <button
               onClick={onOpenExpense}
               className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-2 rounded-xl text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -80,7 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Expense</span>
             </button>
 
-            {/* Import Sales Button */}
+            {/* Import Sales */}
             <button
               onClick={onOpenUpload}
               className="inline-flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors cursor-pointer"

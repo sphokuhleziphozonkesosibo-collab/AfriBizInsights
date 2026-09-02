@@ -10,8 +10,13 @@ import { ForecastCards } from './components/ForecastCards';
 import { UploadModal } from './components/UploadModal';
 import { ExpenseModal } from './components/ExpenseModal';
 import { InventoryModal } from './components/InventoryModal';
+import { WhatsAppModal } from './components/WhatsAppModal';
 import { AuthModal } from './components/AuthModal';
-import { exportBusinessReport } from './services/reportExport';
+import {
+  exportBusinessReport,
+  generateWhatsAppSummary,
+  downloadStoreBackupCsv,
+} from './services/reportExport';
 import {
   getDashboardSummary,
   getSalesTrend,
@@ -46,6 +51,7 @@ export function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('afribiz_user');
@@ -115,6 +121,10 @@ export function App() {
     exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts);
   };
 
+  const handleDownloadBackup = () => {
+    downloadStoreBackupCsv(currentUser, summary, topProducts, deadStock);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {!currentUser && (
@@ -131,6 +141,8 @@ export function App() {
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenExpense={() => setIsExpenseOpen(true)}
         onOpenInventory={() => setIsInventoryOpen(true)}
+        onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
+        onDownloadBackup={handleDownloadBackup}
         onExportReport={handleExportReport}
         onLogout={handleLogout}
       />
@@ -203,7 +215,7 @@ export function App() {
         </div>
       </main>
 
-      {/* Smart Ingestion Wizard Modal with Live Preview */}
+      {/* Smart Ingestion Wizard Modal */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
@@ -230,6 +242,13 @@ export function App() {
           fetchDashboardData(selectedDays);
         }}
         currency={currentUser?.currency || 'ZAR'}
+      />
+
+      {/* WhatsApp Summary Modal */}
+      <WhatsAppModal
+        isOpen={isWhatsAppOpen}
+        onClose={() => setIsWhatsAppOpen(false)}
+        messageText={generateWhatsAppSummary(currentUser, summary, forecasts)}
       />
     </div>
   );
