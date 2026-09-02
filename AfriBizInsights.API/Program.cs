@@ -6,6 +6,7 @@ using AfriBizInsights.Services.Analytics;
 using AfriBizInsights.Services.Auth;
 using AfriBizInsights.Services.Ingestion;
 using AfriBizInsights.Services.ML;
+using AfriBizInsights.Services.Suppliers;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -29,7 +30,7 @@ builder.Services.AddCors(options =>
     });
 });
 
-// 2. MySQL Connection
+// 2. MySQL Database Connection
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(
@@ -43,6 +44,7 @@ builder.Services.AddScoped<ITenantProvider, TenantProvider>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IIngestionService, IngestionService>();
 builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+builder.Services.AddScoped<ISupplierService, SupplierService>();
 
 builder.Services.AddHttpClient<IMlServiceClient, MlServiceClient>();
 
@@ -114,7 +116,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 6. Swagger (Enabled for development and cloud testing)
+// 6. Swagger
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {

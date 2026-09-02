@@ -10,6 +10,8 @@ import { ForecastCards } from './components/ForecastCards';
 import { UploadModal } from './components/UploadModal';
 import { ExpenseModal } from './components/ExpenseModal';
 import { InventoryModal } from './components/InventoryModal';
+import { SupplierModal } from './components/SupplierModal';
+import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { AuthModal } from './components/AuthModal';
 import {
@@ -34,7 +36,7 @@ import {
   type DemandForecast,
   type AuthUser,
 } from './services/api';
-import { RefreshCw, AlertCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle, WifiOff } from 'lucide-react';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -47,11 +49,28 @@ export function App() {
   const [deadStock, setDeadStock] = useState<DeadStockProduct[]>([]);
   const [forecasts, setForecasts] = useState<DemandForecast[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isSupplierOpen, setIsSupplierOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
+  const [poModalData, setPoModalData] = useState<{
+    isOpen: boolean;
+    productId: string | null;
+    productName: string;
+    suggestedQty: number;
+  }>({
+    isOpen: false,
+    productId: null,
+    productName: '',
+    suggestedQty: 0,
+  });
+
+  const isOwner = currentUser?.role === 'Owner' || !currentUser;
 
   useEffect(() => {
     const savedUser = localStorage.getItem('afribiz_user');
@@ -71,6 +90,7 @@ export function App() {
     try {
       setLoading(true);
       setError(null);
+      setIsOffline(false);
 
       const [sumData, trendData, prodData, custData, alertData, deadData, forecastData] =
         await Promise.all([
@@ -90,9 +110,19 @@ export function App() {
       setAlerts(alertData);
       setDeadStock(deadData);
       setForecasts(forecastData);
+
+      // Save to Session Storage for Loadshedding / Offline Resilience
+      sessionStorage.setItem('afribiz_cached_summary', JSON.stringify(sumData));
+      sessionStorage.setItem('afribiz_cached_trends', JSON.stringify(trendData));
     } catch (err: any) {
-      console.error('Failed to load dashboard data:', err);
-      setError('Failed to fetch data for this business account. Verify backend API is running.');
+      console.warn('Network error or loadshedding drop. Loading offline cache...', err);
+      const cachedSum = sessionStorage.getItem('afribiz_cached_summary');
+      if (cachedSum) {
+        setSummary(JSON.parse(cachedSum));
+        setIsOffline(true);
+      } else {
+        setError('Unable to load telemetry. Please verify backend API connection.');
+      }
     } finally {
       setLoading(false);
     }
@@ -107,6 +137,7 @@ export function App() {
   const handleLogout = () => {
     localStorage.removeItem('afribiz_token');
     localStorage.removeItem('afribiz_user');
+    sessionStorage.clear();
     setCurrentUser(null);
     setSummary(null);
     setTrends([]);
@@ -141,6 +172,7 @@ export function App() {
         onOpenUpload={() => setIsUploadOpen(true)}
         onOpenExpense={() => setIsExpenseOpen(true)}
         onOpenInventory={() => setIsInventoryOpen(true)}
+        onOpenSuppliers={() => setIsSupplierOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
         onDownloadBackup={handleDownloadBackup}
         onExportReport={handleExportReport}
@@ -170,6 +202,14 @@ export function App() {
           </button>
         </div>
 
+        {/* Loadshedding / Offline Indicator */}
+        {isOffline && (
+          <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-center gap-3 font-medium">
+            <WifiOff className="h-4 w-4 text-indigo-600 shrink-0" />
+            <span>Loadshedding / Offline Mode: Displaying last saved telemetry cache.</span>
+          </div>
+        )}
+
         {error && (
           <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
@@ -180,14 +220,24 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Profitability & Financial Health Cards + Payment Channels Breakdown */}
-        <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
+        {/* 1. Profitability & Financial Health Cards (Owner Only) */}
+        {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
 
         {/* 2. Dead Stock & Trapped Cash Radar */}
-        <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />
+        {isOwner && <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />}
 
-        {/* 3. AI Machine Learning Demand Forecasting Section */}
-        <ForecastCards forecasts={forecasts} />
+        {/* 3. AI Machine Learning Demand Forecasting with 1-Click PO Generator */}
+        <ForecastCards
+          forecasts={forecasts}
+          onOrderProduct={(prodId, prodName, suggestedQty) => {
+            setPoModalData({
+              isOpen: true,
+              productId: prodId,
+              productName: prodName,
+              suggestedQty,
+            });
+          }}
+        />
 
         {/* 4. Middle Row: Sales Trend Chart & Smart Alerts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -215,7 +265,7 @@ export function App() {
         </div>
       </main>
 
-      {/* Smart Ingestion Wizard Modal */}
+      {/* Ingestion Wizard Modal */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
@@ -234,7 +284,7 @@ export function App() {
         currency={currentUser?.currency || 'ZAR'}
       />
 
-      {/* Stock & Price Manager Modal */}
+      {/* Stock Manager Modal */}
       <InventoryModal
         isOpen={isInventoryOpen}
         onClose={() => setIsInventoryOpen(false)}
@@ -244,7 +294,26 @@ export function App() {
         currency={currentUser?.currency || 'ZAR'}
       />
 
-      {/* WhatsApp Summary Modal */}
+      {/* Supplier Directory Modal */}
+      <SupplierModal
+        isOpen={isSupplierOpen}
+        onClose={() => setIsSupplierOpen(false)}
+        onSuccess={() => {
+          fetchDashboardData(selectedDays);
+        }}
+      />
+
+      {/* 1-Click Purchase Order (PO) Modal */}
+      <PurchaseOrderModal
+        isOpen={poModalData.isOpen}
+        onClose={() => setPoModalData({ ...poModalData, isOpen: false })}
+        productId={poModalData.productId}
+        productName={poModalData.productName}
+        suggestedQty={poModalData.suggestedQty}
+        currency={currentUser?.currency || 'ZAR'}
+      />
+
+      {/* WhatsApp Modal */}
       <WhatsAppModal
         isOpen={isWhatsAppOpen}
         onClose={() => setIsWhatsAppOpen(false)}

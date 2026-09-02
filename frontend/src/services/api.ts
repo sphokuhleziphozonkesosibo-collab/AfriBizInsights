@@ -77,6 +77,40 @@ export interface UpdateProductStockDto {
   costPrice?: number;
 }
 
+export interface Supplier {
+  supplierId: string;
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  leadTimeDays: number;
+}
+
+export interface CreateSupplierDto {
+  name: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  address: string;
+  leadTimeDays: number;
+}
+
+export interface PurchaseOrder {
+  poNumber: string;
+  businessName: string;
+  supplierName: string;
+  supplierEmail: string;
+  supplierPhone: string;
+  productName: string;
+  quantity: number;
+  estimatedUnitCost: number;
+  estimatedTotalCost: number;
+  expectedDeliveryDays: number;
+  orderDate: string;
+  notes: string;
+}
+
 export interface Expense {
   expenseId: string;
   category: string;
@@ -206,6 +240,32 @@ export const getDeadStockProducts = async (days: number = 30): Promise<DeadStock
 
 export const getProductForecasts = async (): Promise<DemandForecast[]> => {
   const response = await apiClient.get<DemandForecast[]>('/analytics/forecasts');
+  return response.data;
+};
+
+// --- SUPPLIERS & PURCHASE ORDERS ---
+export const getSuppliers = async (): Promise<Supplier[]> => {
+  const response = await apiClient.get<Supplier[]>('/suppliers');
+  return response.data;
+};
+
+export const createSupplier = async (dto: CreateSupplierDto): Promise<Supplier> => {
+  const response = await apiClient.post<Supplier>('/suppliers', dto);
+  return response.data;
+};
+
+export const generatePurchaseOrder = async (
+  productId: string,
+  supplierId: string,
+  quantity: number,
+  notes: string = ''
+): Promise<PurchaseOrder> => {
+  const response = await apiClient.post<PurchaseOrder>('/suppliers/generate-po', {
+    productId,
+    supplierId,
+    orderQuantity: quantity,
+    notes,
+  });
   return response.data;
 };
 
