@@ -13,19 +13,23 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configure CORS (Allows Vercel Cloud Domain, Localhost, and Mobile clients)
+// 1. Strict Production CORS Whitelist
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(origin => true)
+        policy.WithOrigins(
+                  "https://afri-biz-insights-iota.vercel.app",
+                  "http://localhost:5173",
+                  "http://localhost:3000"
+              )
               .AllowAnyHeader()
               .AllowAnyMethod()
               .AllowCredentials();
     });
 });
 
-// 2. Database Connection (MySQL)
+// 2. MySQL Connection
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseMySql(
@@ -42,8 +46,10 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 
 builder.Services.AddHttpClient<IMlServiceClient, MlServiceClient>();
 
-// 4. JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "AfriBiz_Super_Secret_Key_For_Development_Only_2026_Secure_Key_Longer_32chars";
+// 4. Secure JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"]
+             ?? throw new InvalidOperationException("Fatal: 'Jwt:Key' is not configured in application settings.");
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -51,7 +57,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = !builder.Environment.IsDevelopment();
     options.SaveToken = true;
     options.TokenValidationParameters = new TokenValidationParameters
     {
@@ -71,6 +77,25 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "AfriBiz Insights API", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Enter JWT Bearer token"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
 
 var app = builder.Build();
@@ -89,7 +114,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// 6. Enable Swagger in BOTH Development and Cloud Production
+// 6. Swagger (Enabled for development and cloud testing)
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -97,12 +122,10 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Live Health Check Endpoint
+// Health check endpoint
 app.MapGet("/", () => "AfriBiz Insights Backend API is Live on Azure!");
 
 app.UseHttpsRedirection();
-
-// Enable CORS
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();

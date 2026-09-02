@@ -1,8 +1,10 @@
 ﻿using AfriBizInsights.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AfriBizInsights.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class IngestionController : ControllerBase
@@ -26,7 +28,17 @@ public class IngestionController : ControllerBase
         {
             using var stream = file.OpenReadStream();
             var result = await _ingestionService.ProcessSalesFileAsync(stream, file.FileName);
+
+            if (!result.Success && result.ValidationErrors.Any())
+            {
+                return BadRequest(result);
+            }
+
             return Ok(result);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {

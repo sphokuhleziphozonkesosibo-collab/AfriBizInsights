@@ -1,47 +1,21 @@
 ﻿using AfriBizInsights.Core.DTOs.Expenses;
 using AfriBizInsights.Core.DTOs.Products;
 using AfriBizInsights.Core.Interfaces;
-using AfriBizInsights.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AfriBizInsights.API.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class AnalyticsController : ControllerBase
 {
     private readonly IAnalyticsService _analyticsService;
-    private readonly IMlServiceClient _mlServiceClient;
-    private readonly ITenantProvider _tenantProvider;
-    private readonly ApplicationDbContext _context;
 
-    public AnalyticsController(
-        IAnalyticsService analyticsService,
-        IMlServiceClient mlServiceClient,
-        ITenantProvider tenantProvider,
-        ApplicationDbContext context)
+    public AnalyticsController(IAnalyticsService analyticsService)
     {
         _analyticsService = analyticsService;
-        _mlServiceClient = mlServiceClient;
-        _tenantProvider = tenantProvider;
-        _context = context;
-    }
-
-    private async Task<Guid> ResolveTenantIdAsync()
-    {
-        var tenantId = _tenantProvider.GetCurrentTenantId();
-        if (tenantId.HasValue && tenantId.Value != Guid.Empty)
-        {
-            return tenantId.Value;
-        }
-
-        var defaultTenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync();
-        if (defaultTenant == null)
-        {
-            throw new Exception("No business registered in database yet.");
-        }
-        return defaultTenant.TenantId;
     }
 
     [HttpGet("summary")]
@@ -51,6 +25,10 @@ public class AnalyticsController : ControllerBase
         {
             var summary = await _analyticsService.GetDashboardSummaryAsync();
             return Ok(summary);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -66,6 +44,10 @@ public class AnalyticsController : ControllerBase
             var trend = await _analyticsService.GetSalesTrendAsync(days);
             return Ok(trend);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -79,6 +61,28 @@ public class AnalyticsController : ControllerBase
         {
             var top = await _analyticsService.GetTopProductsAsync(limit);
             return Ok(top);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("top-customers")]
+    public async Task<IActionResult> GetTopCustomers([FromQuery] int limit = 10)
+    {
+        try
+        {
+            var customers = await _analyticsService.GetTopCustomersAsync(limit);
+            return Ok(customers);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -94,6 +98,10 @@ public class AnalyticsController : ControllerBase
             var alerts = await _analyticsService.GetBusinessAlertsAsync();
             return Ok(alerts);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -108,6 +116,10 @@ public class AnalyticsController : ControllerBase
             var deadStock = await _analyticsService.GetDeadStockProductsAsync(days);
             return Ok(deadStock);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -119,9 +131,12 @@ public class AnalyticsController : ControllerBase
     {
         try
         {
-            var tenantId = await ResolveTenantIdAsync();
-            var forecasts = await _mlServiceClient.GetProductDemandForecastsAsync(tenantId);
+            var forecasts = await _analyticsService.GetProductDemandForecastsAsync();
             return Ok(forecasts);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -137,6 +152,10 @@ public class AnalyticsController : ControllerBase
             var expense = await _analyticsService.AddExpenseAsync(dto);
             return Ok(expense);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -150,6 +169,10 @@ public class AnalyticsController : ControllerBase
         {
             var expenses = await _analyticsService.GetRecentExpensesAsync(limit);
             return Ok(expenses);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -165,6 +188,10 @@ public class AnalyticsController : ControllerBase
             var products = await _analyticsService.GetAllProductsAsync();
             return Ok(products);
         }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
         catch (Exception ex)
         {
             return BadRequest(new { message = ex.Message });
@@ -178,6 +205,14 @@ public class AnalyticsController : ControllerBase
         {
             var updated = await _analyticsService.UpdateProductStockAsync(productId, dto);
             return Ok(updated);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
         }
         catch (Exception ex)
         {

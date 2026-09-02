@@ -12,35 +12,33 @@ public class AnalyticsService : IAnalyticsService
 {
     private readonly ApplicationDbContext _context;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IMlServiceClient _mlServiceClient;
 
-    public AnalyticsService(ApplicationDbContext context, ITenantProvider tenantProvider)
+    public AnalyticsService(
+        ApplicationDbContext context,
+        ITenantProvider tenantProvider,
+        IMlServiceClient mlServiceClient)
     {
         _context = context;
         _tenantProvider = tenantProvider;
+        _mlServiceClient = mlServiceClient;
     }
 
-    private async Task<Guid> ResolveTenantIdAsync()
+    private Guid GetAuthenticatedTenantId()
     {
         var tenantId = _tenantProvider.GetCurrentTenantId();
-        if (tenantId.HasValue && tenantId.Value != Guid.Empty)
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
         {
-            return tenantId.Value;
+            throw new UnauthorizedAccessException("Authentication required. No valid business tenant context found.");
         }
-
-        var defaultTenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync();
-        if (defaultTenant == null)
-        {
-            throw new Exception("No business registered in database yet.");
-        }
-        return defaultTenant.TenantId;
+        return tenantId.Value;
     }
 
     public async Task<DashboardSummaryDto> GetDashboardSummaryAsync()
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
         var sales = await _context.Sales
-            .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId)
             .ToListAsync();
 
@@ -49,7 +47,6 @@ public class AnalyticsService : IAnalyticsService
         var aov = totalOrders > 0 ? Math.Round(totalRevenue / totalOrders, 2) : 0;
 
         var saleItems = await _context.SaleItems
-            .IgnoreQueryFilters()
             .Include(si => si.Product)
             .Where(si => si.TenantId == tenantId)
             .ToListAsync();
@@ -64,7 +61,6 @@ public class AnalyticsService : IAnalyticsService
         }
 
         var expenses = await _context.Expenses
-            .IgnoreQueryFilters()
             .Where(e => e.TenantId == tenantId)
             .ToListAsync();
 
@@ -93,6 +89,19 @@ public class AnalyticsService : IAnalyticsService
             repeatCustomerPct = Math.Round(((decimal)repeatCount / uniqueCustomers) * 100, 1);
         }
 
+        // Payment Method Breakdown Telemetry
+        var paymentBreakdown = sales
+            .GroupBy(s => string.IsNullOrWhiteSpace(s.PaymentMethod) ? "Cash" : s.PaymentMethod.Trim())
+            .Select(g => new PaymentMethodBreakdownDto
+            {
+                PaymentMethod = g.Key,
+                TotalRevenue = g.Sum(x => x.TotalAmount),
+                TransactionCount = g.Count(),
+                PercentageOfTotal = totalRevenue > 0 ? Math.Round((g.Sum(x => x.TotalAmount) / totalRevenue) * 100, 1) : 0
+            })
+            .OrderByDescending(p => p.TotalRevenue)
+            .ToList();
+
         var bestSeller = saleItems
             .GroupBy(si => si.ProductId)
             .Select(g => new { ProductId = g.Key, TotalUnits = g.Sum(x => x.Quantity) })
@@ -102,7 +111,7 @@ public class AnalyticsService : IAnalyticsService
         string bestSellerName = "None";
         if (bestSeller != null)
         {
-            var product = await _context.Products.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.ProductId == bestSeller.ProductId);
+            var product = await _context.Products.FirstOrDefaultAsync(p => p.ProductId == bestSeller.ProductId && p.TenantId == tenantId);
             if (product != null)
             {
                 bestSellerName = product.Name;
@@ -110,7 +119,6 @@ public class AnalyticsService : IAnalyticsService
         }
 
         var lowStockCount = await _context.Products
-            .IgnoreQueryFilters()
             .Where(p => p.TenantId == tenantId && p.CurrentStock <= p.ReorderLevel)
             .CountAsync();
 
@@ -142,77 +150,44 @@ public class AnalyticsService : IAnalyticsService
             LowStockProductCount = lowStockCount,
             RevenueGrowthPercentage = growthPct,
             UniqueCustomerCount = uniqueCustomers,
-            RepeatCustomerPercentage = repeatCustomerPct
+            RepeatCustomerPercentage = repeatCustomerPct,
+            PaymentChannels = paymentBreakdown
         };
     }
 
-    public async Task<List<ProductDto>> GetAllProductsAsync()
+    public async Task<List<TopCustomerDto>> GetTopCustomersAsync(int limit = 10)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
-        return await _context.Products
-            .IgnoreQueryFilters()
-            .Where(p => p.TenantId == tenantId)
-            .OrderBy(p => p.Name)
-            .Select(p => new ProductDto
-            {
-                ProductId = p.ProductId,
-                SKU = p.SKU,
-                Name = p.Name,
-                Category = p.Category,
-                CostPrice = p.CostPrice,
-                SellingPrice = p.SellingPrice,
-                CurrentStock = p.CurrentStock,
-                ReorderLevel = p.ReorderLevel
-            })
+        var sales = await _context.Sales
+            .Where(s => s.TenantId == tenantId && !string.IsNullOrWhiteSpace(s.CustomerIdentifier))
             .ToListAsync();
-    }
 
-    public async Task<ProductDto> UpdateProductStockAsync(Guid productId, UpdateProductStockDto dto)
-    {
-        var tenantId = await ResolveTenantIdAsync();
-
-        var product = await _context.Products
-            .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(p => p.ProductId == productId && p.TenantId == tenantId);
-
-        if (product == null)
-        {
-            throw new Exception("Product not found in this business catalog.");
-        }
-
-        product.CurrentStock = dto.CurrentStock;
-        if (dto.ReorderLevel.HasValue) product.ReorderLevel = dto.ReorderLevel.Value;
-        if (dto.SellingPrice.HasValue) product.SellingPrice = dto.SellingPrice.Value;
-        if (dto.CostPrice.HasValue) product.CostPrice = dto.CostPrice.Value;
-
-        await _context.SaveChangesAsync();
-
-        return new ProductDto
-        {
-            ProductId = product.ProductId,
-            SKU = product.SKU,
-            Name = product.Name,
-            Category = product.Category,
-            CostPrice = product.CostPrice,
-            SellingPrice = product.SellingPrice,
-            CurrentStock = product.CurrentStock,
-            ReorderLevel = product.ReorderLevel
-        };
+        return sales
+            .GroupBy(s => s.CustomerIdentifier!.Trim())
+            .Select(g => new TopCustomerDto
+            {
+                CustomerIdentifier = g.Key,
+                TotalOrders = g.Count(),
+                TotalSpend = g.Sum(x => x.TotalAmount),
+                AverageBasketSize = Math.Round(g.Average(x => x.TotalAmount), 2),
+                LastPurchaseDate = g.Max(x => x.SaleDate)
+            })
+            .OrderByDescending(c => c.TotalSpend)
+            .Take(limit)
+            .ToList();
     }
 
     public async Task<List<DeadStockDto>> GetDeadStockProductsAsync(int inactiveDays = 30)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
         var cutoff = DateTime.UtcNow.AddDays(-inactiveDays);
 
         var products = await _context.Products
-            .IgnoreQueryFilters()
             .Where(p => p.TenantId == tenantId && p.CurrentStock > 0)
             .ToListAsync();
 
         var recentSales = await _context.SaleItems
-            .IgnoreQueryFilters()
             .Include(si => si.Sale)
             .Where(si => si.TenantId == tenantId && si.Sale.SaleDate >= cutoff)
             .Select(si => si.ProductId)
@@ -245,9 +220,15 @@ public class AnalyticsService : IAnalyticsService
         return deadStock.OrderByDescending(d => d.TrappedCapital).ToList();
     }
 
+    public async Task<List<DemandForecastDto>> GetProductDemandForecastsAsync()
+    {
+        var tenantId = GetAuthenticatedTenantId();
+        return await _mlServiceClient.GetProductDemandForecastsAsync(tenantId);
+    }
+
     public async Task<ExpenseDto> AddExpenseAsync(CreateExpenseDto dto)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
         var expense = new Expense
         {
@@ -275,10 +256,9 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<List<ExpenseDto>> GetRecentExpensesAsync(int limit = 10)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
         return await _context.Expenses
-            .IgnoreQueryFilters()
             .Where(e => e.TenantId == tenantId)
             .OrderByDescending(e => e.ExpenseDate)
             .Take(limit)
@@ -293,13 +273,65 @@ public class AnalyticsService : IAnalyticsService
             .ToListAsync();
     }
 
+    public async Task<List<ProductDto>> GetAllProductsAsync()
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        return await _context.Products
+            .Where(p => p.TenantId == tenantId)
+            .OrderBy(p => p.Name)
+            .Select(p => new ProductDto
+            {
+                ProductId = p.ProductId,
+                SKU = p.SKU,
+                Name = p.Name,
+                Category = p.Category,
+                CostPrice = p.CostPrice,
+                SellingPrice = p.SellingPrice,
+                CurrentStock = p.CurrentStock,
+                ReorderLevel = p.ReorderLevel
+            })
+            .ToListAsync();
+    }
+
+    public async Task<ProductDto> UpdateProductStockAsync(Guid productId, UpdateProductStockDto dto)
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        var product = await _context.Products
+            .FirstOrDefaultAsync(p => p.ProductId == productId && p.TenantId == tenantId);
+
+        if (product == null)
+        {
+            throw new KeyNotFoundException("Product not found in this business catalog.");
+        }
+
+        product.CurrentStock = dto.CurrentStock;
+        if (dto.ReorderLevel.HasValue) product.ReorderLevel = dto.ReorderLevel.Value;
+        if (dto.SellingPrice.HasValue) product.SellingPrice = dto.SellingPrice.Value;
+        if (dto.CostPrice.HasValue) product.CostPrice = dto.CostPrice.Value;
+
+        await _context.SaveChangesAsync();
+
+        return new ProductDto
+        {
+            ProductId = product.ProductId,
+            SKU = product.SKU,
+            Name = product.Name,
+            Category = product.Category,
+            CostPrice = product.CostPrice,
+            SellingPrice = product.SellingPrice,
+            CurrentStock = product.CurrentStock,
+            ReorderLevel = product.ReorderLevel
+        };
+    }
+
     public async Task<List<SalesTrendDto>> GetSalesTrendAsync(int days = 30)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
         var cutoffDate = DateTime.UtcNow.Date.AddDays(-days);
 
         var sales = await _context.Sales
-            .IgnoreQueryFilters()
             .Where(s => s.TenantId == tenantId && s.SaleDate >= cutoffDate)
             .OrderBy(s => s.SaleDate)
             .ToListAsync();
@@ -318,10 +350,9 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<List<TopProductDto>> GetTopProductsAsync(int limit = 5)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
         return await _context.SaleItems
-            .IgnoreQueryFilters()
             .Include(si => si.Product)
             .Where(si => si.TenantId == tenantId)
             .GroupBy(si => new { si.ProductId, si.Product.Name, si.Product.Category })
@@ -340,12 +371,11 @@ public class AnalyticsService : IAnalyticsService
 
     public async Task<List<BusinessAlertDto>> GetBusinessAlertsAsync()
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
         var alerts = new List<BusinessAlertDto>();
 
         // 1. Low Stock Alert
         var lowStockProducts = await _context.Products
-            .IgnoreQueryFilters()
             .Where(p => p.TenantId == tenantId && p.CurrentStock <= p.ReorderLevel)
             .ToListAsync();
 
@@ -357,7 +387,7 @@ public class AnalyticsService : IAnalyticsService
                 AlertType = "StockWarning",
                 Severity = p.CurrentStock == 0 ? "Critical" : "High",
                 Title = $"Low Stock: {p.Name}",
-                Message = $"Only {p.CurrentStock} units remaining (Threshold: {p.ReorderLevel}). Reorder to avoid lost sales.",
+                Message = $"Only {p.CurrentStock} units remaining (Threshold: {p.ReorderLevel}). Reorder soon to maintain sales momentum.",
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -378,7 +408,7 @@ public class AnalyticsService : IAnalyticsService
             });
         }
 
-        // 3. Profit Margin Health Alert
+        // 3. Profit Margin Alert
         var summary = await GetDashboardSummaryAsync();
         if (summary.TotalRevenue > 0 && summary.NetMarginPercentage < 15.0m)
         {

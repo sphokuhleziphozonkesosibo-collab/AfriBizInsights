@@ -24,42 +24,40 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto> RegisterBusinessAsync(RegisterBusinessDto dto)
     {
-        // 1. Check if user email already exists across the platform
-        var emailExists = await _context.Users.AnyAsync(u => u.Email.ToLower() == dto.Email.ToLower());
+        var emailExists = await _context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
         if (emailExists)
         {
-            throw new Exception("An account with this email already exists.");
+            throw new Exception("An account with this email address already exists.");
         }
 
-        // 2. Create the Business (Tenant)
         var tenant = new Tenant
         {
             TenantId = Guid.NewGuid(),
-            BusinessName = dto.BusinessName,
-            Currency = string.IsNullOrWhiteSpace(dto.Currency) ? "ZAR" : dto.Currency.ToUpper(),
-            Country = string.IsNullOrWhiteSpace(dto.Country) ? "South Africa" : dto.Country,
-            Industry = string.IsNullOrWhiteSpace(dto.Industry) ? "Retail" : dto.Industry,
+            BusinessName = dto.BusinessName.Trim(),
+            Currency = string.IsNullOrWhiteSpace(dto.Currency) ? "ZAR" : dto.Currency.Trim().ToUpper(),
+            Country = string.IsNullOrWhiteSpace(dto.Country) ? "South Africa" : dto.Country.Trim(),
+            Industry = string.IsNullOrWhiteSpace(dto.Industry) ? "Retail" : dto.Industry.Trim(),
             CreatedAt = DateTime.UtcNow
         };
 
-        // 3. Create the Owner User
         var user = new User
         {
             UserId = Guid.NewGuid(),
             TenantId = tenant.TenantId,
-            FullName = dto.OwnerFullName,
-            Email = dto.Email.ToLower(),
+            FullName = dto.OwnerFullName.Trim(),
+            Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = "Owner",
             CreatedAt = DateTime.UtcNow
         };
 
-        // 4. Save both in one single atomic transaction
         await _context.Tenants.AddAsync(tenant);
         await _context.Users.AddAsync(user);
         await _context.SaveChangesAsync();
 
-        // 5. Generate JWT Token
         var token = GenerateJwtToken(user, tenant);
 
         return new AuthResponseDto
@@ -76,20 +74,19 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
     {
-        // Find user by email (Disable tenant filter for login lookups)
         var user = await _context.Users
             .IgnoreQueryFilters()
             .Include(u => u.Tenant)
-            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower());
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
         {
-            return null; // Invalid credentials
+            return null;
         }
 
         if (user.Tenant == null)
         {
-            throw new Exception("User has no associated business tenant.");
+            throw new Exception("User account is not linked to an active business.");
         }
 
         var token = GenerateJwtToken(user, user.Tenant);
@@ -108,7 +105,12 @@ public class AuthService : IAuthService
 
     private string GenerateJwtToken(User user, Tenant tenant)
     {
-        var jwtSecret = _configuration["Jwt:Key"] ?? "AfriBiz_Super_Secret_Key_For_Development_Only_2026_Secure_Key_Longer_32chars";
+        var jwtSecret = _configuration["Jwt:Key"];
+        if (string.IsNullOrWhiteSpace(jwtSecret) || jwtSecret.Length < 32)
+        {
+            throw new InvalidOperationException("JWT Secret Key is missing or too short. Configure 'Jwt:Key' in application settings.");
+        }
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

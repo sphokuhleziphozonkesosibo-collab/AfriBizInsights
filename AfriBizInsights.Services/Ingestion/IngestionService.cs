@@ -23,32 +23,36 @@ public class IngestionService : IIngestionService
         _tenantProvider = tenantProvider;
     }
 
-    private async Task<Guid> ResolveTenantIdAsync()
+    private Guid GetAuthenticatedTenantId()
     {
         var tenantId = _tenantProvider.GetCurrentTenantId();
-        if (tenantId.HasValue && tenantId.Value != Guid.Empty)
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
         {
-            return tenantId.Value;
+            throw new UnauthorizedAccessException("Authentication required. No valid business tenant context found.");
         }
-
-        var defaultTenant = await _context.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync();
-        if (defaultTenant == null)
-        {
-            throw new Exception("No registered business found in database.");
-        }
-        return defaultTenant.TenantId;
+        return tenantId.Value;
     }
 
     public async Task<IngestionResultDto> ProcessSalesFileAsync(Stream fileStream, string fileName)
     {
-        var tenantId = await ResolveTenantIdAsync();
+        var tenantId = GetAuthenticatedTenantId();
 
+        // 1. File Size Protection (Max 10MB)
         if (fileStream == null || fileStream.Length == 0)
         {
             return new IngestionResultDto
             {
                 Success = false,
                 ValidationErrors = new List<string> { "Uploaded file stream is empty." }
+            };
+        }
+
+        if (fileStream.Length > 10 * 1024 * 1024)
+        {
+            return new IngestionResultDto
+            {
+                Success = false,
+                ValidationErrors = new List<string> { "File size exceeds the 10MB limit." }
             };
         }
 
@@ -79,7 +83,17 @@ public class IngestionService : IIngestionService
             return new IngestionResultDto
             {
                 Success = false,
-                ValidationErrors = new List<string> { $"File read error: {ex.Message}" }
+                ValidationErrors = new List<string> { $"File parse error: {ex.Message}" }
+            };
+        }
+
+        // 2. Row Count Protection (Max 10,000 rows)
+        if (rawRecords.Count > 10000)
+        {
+            return new IngestionResultDto
+            {
+                Success = false,
+                ValidationErrors = new List<string> { "File exceeds the 10,000 row maximum batch limit." }
             };
         }
 
@@ -153,7 +167,6 @@ public class IngestionService : IIngestionService
         var validationErrors = new List<string>();
 
         var productsList = await _context.Products
-            .IgnoreQueryFilters()
             .Where(p => p.TenantId == tenantId)
             .ToListAsync();
 
@@ -210,7 +223,7 @@ public class IngestionService : IIngestionService
                     SKU = raw.SKU?.Trim(),
                     SellingPrice = unitPrice,
                     CostPrice = costPrice > 0 ? costPrice : unitPrice * 0.7m,
-                    CurrentStock = Math.Max(0, 100 - quantity) // Starting stock minus quantity sold
+                    CurrentStock = Math.Max(0, 100 - quantity)
                 };
 
                 await _context.Products.AddAsync(product);
@@ -219,7 +232,6 @@ public class IngestionService : IIngestionService
             }
             else
             {
-                // CRITICAL IMPROVEMENT: Decrement stock as items are sold
                 product.CurrentStock = Math.Max(0, product.CurrentStock - quantity);
                 productsModified++;
             }

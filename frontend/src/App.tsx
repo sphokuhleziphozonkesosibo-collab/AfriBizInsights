@@ -4,6 +4,7 @@ import { KpiCards } from './components/KpiCards';
 import { SalesChart } from './components/SalesChart';
 import { AlertsList } from './components/AlertsList';
 import { TopProductsTable } from './components/TopProductsTable';
+import { TopCustomersTable } from './components/TopCustomersTable';
 import { DeadStockCard } from './components/DeadStockCard';
 import { ForecastCards } from './components/ForecastCards';
 import { UploadModal } from './components/UploadModal';
@@ -15,12 +16,14 @@ import {
   getDashboardSummary,
   getSalesTrend,
   getTopProducts,
+  getTopCustomers,
   getBusinessAlerts,
   getDeadStockProducts,
   getProductForecasts,
   type DashboardSummary,
   type SalesTrend,
   type TopProduct,
+  type TopCustomer,
   type BusinessAlert,
   type DeadStockProduct,
   type DemandForecast,
@@ -34,6 +37,7 @@ export function App() {
   const [trends, setTrends] = useState<SalesTrend[]>([]);
   const [selectedDays, setSelectedDays] = useState<number>(30);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
+  const [topCustomers, setTopCustomers] = useState<TopCustomer[]>([]);
   const [alerts, setAlerts] = useState<BusinessAlert[]>([]);
   const [deadStock, setDeadStock] = useState<DeadStockProduct[]>([]);
   const [forecasts, setForecasts] = useState<DemandForecast[]>([]);
@@ -62,18 +66,21 @@ export function App() {
       setLoading(true);
       setError(null);
 
-      const [sumData, trendData, prodData, alertData, deadData, forecastData] = await Promise.all([
-        getDashboardSummary(),
-        getSalesTrend(days),
-        getTopProducts(5),
-        getBusinessAlerts(),
-        getDeadStockProducts(30),
-        getProductForecasts(),
-      ]);
+      const [sumData, trendData, prodData, custData, alertData, deadData, forecastData] =
+        await Promise.all([
+          getDashboardSummary(),
+          getSalesTrend(days),
+          getTopProducts(5),
+          getTopCustomers(10),
+          getBusinessAlerts(),
+          getDeadStockProducts(30),
+          getProductForecasts(),
+        ]);
 
       setSummary(sumData);
       setTrends(trendData);
       setTopProducts(prodData);
+      setTopCustomers(custData);
       setAlerts(alertData);
       setDeadStock(deadData);
       setForecasts(forecastData);
@@ -98,6 +105,7 @@ export function App() {
     setSummary(null);
     setTrends([]);
     setTopProducts([]);
+    setTopCustomers([]);
     setAlerts([]);
     setDeadStock([]);
     setForecasts([]);
@@ -160,7 +168,7 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Profitability & Financial Health Cards with Customer Retention */}
+        {/* 1. Profitability & Financial Health Cards + Payment Channels Breakdown */}
         <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
 
         {/* 2. Dead Stock & Trapped Cash Radar */}
@@ -184,9 +192,14 @@ export function App() {
           </div>
         </div>
 
-        {/* 5. Bottom Row: Top Products Table */}
-        <div>
-          <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
+        {/* 5. Bottom Row: Top Products Table & VIP Customers Table */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
+          </div>
+          <div>
+            <TopCustomersTable customers={topCustomers} currency={currentUser?.currency || 'ZAR'} />
+          </div>
         </div>
       </main>
 

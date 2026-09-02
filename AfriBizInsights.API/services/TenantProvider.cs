@@ -15,22 +15,15 @@ public class TenantProvider : ITenantProvider
     public Guid? GetCurrentTenantId()
     {
         var httpContext = _httpContextAccessor.HttpContext;
-        if (httpContext == null) return null;
+        if (httpContext?.User == null) return null;
 
-        // 1. Read from JWT Claim
-        var tenantClaim = httpContext.User?.FindFirst("TenantId")?.Value;
-        if (!string.IsNullOrEmpty(tenantClaim) && Guid.TryParse(tenantClaim, out var tenantIdFromClaim))
-        {
-            return tenantIdFromClaim;
-        }
+        // Extract TenantId strictly from verified JWT claim
+        var tenantClaim = httpContext.User.FindFirst("TenantId")?.Value
+                          ?? httpContext.User.FindFirst(ClaimTypes.GroupSid)?.Value;
 
-        // 2. Read from Header "X-Tenant-Id"
-        if (httpContext.Request.Headers.TryGetValue("X-Tenant-Id", out var tenantHeader))
+        if (!string.IsNullOrEmpty(tenantClaim) && Guid.TryParse(tenantClaim, out var tenantId))
         {
-            if (Guid.TryParse(tenantHeader, out var tenantIdFromHeader))
-            {
-                return tenantIdFromHeader;
-            }
+            return tenantId;
         }
 
         return null;

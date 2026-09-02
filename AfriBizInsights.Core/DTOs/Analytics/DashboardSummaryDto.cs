@@ -22,7 +22,8 @@ public class DashboardSummaryDto
     public int LowStockProductCount { get; set; }
     public decimal RevenueGrowthPercentage { get; set; }
 
-    // Customer Telemetry
+    // Customer Retention & Payment Telemetry
     public int UniqueCustomerCount { get; set; }
     public decimal RepeatCustomerPercentage { get; set; }
+    public List<PaymentMethodBreakdownDto> PaymentChannels { get; set; } = new();
 }

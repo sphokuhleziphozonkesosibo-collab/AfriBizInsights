@@ -26,6 +26,13 @@ export interface LoginDto {
   password: string;
 }
 
+export interface PaymentMethodBreakdown {
+  paymentMethod: string;
+  totalRevenue: number;
+  transactionCount: number;
+  percentageOfTotal: number;
+}
+
 export interface DashboardSummary {
   totalRevenue: number;
   costOfGoodsSold: number;
@@ -41,6 +48,15 @@ export interface DashboardSummary {
   revenueGrowthPercentage: number;
   uniqueCustomerCount: number;
   repeatCustomerPercentage: number;
+  paymentChannels: PaymentMethodBreakdown[];
+}
+
+export interface TopCustomer {
+  customerIdentifier: string;
+  totalOrders: number;
+  totalSpend: number;
+  averageBasketSize: number;
+  lastPurchaseDate: string;
 }
 
 export interface Product {
@@ -170,6 +186,11 @@ export const getSalesTrend = async (days: number = 30): Promise<SalesTrend[]> =>
 
 export const getTopProducts = async (limit: number = 5): Promise<TopProduct[]> => {
   const response = await apiClient.get<TopProduct[]>(`/analytics/top-products?limit=${limit}`);
+  return response.data;
+};
+
+export const getTopCustomers = async (limit: number = 10): Promise<TopCustomer[]> => {
+  const response = await apiClient.get<TopCustomer[]>(`/analytics/top-customers?limit=${limit}`);
   return response.data;
 };
 
