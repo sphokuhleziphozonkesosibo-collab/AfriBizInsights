@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FileCheck, Printer, AlertCircle, Loader2 } from 'lucide-react';
+import { X, FileCheck, Printer, AlertCircle } from 'lucide-react';
 import { getSuppliers, generatePurchaseOrder, type Supplier, type PurchaseOrder } from '../services/api';
 
 interface PurchaseOrderModalProps {
@@ -105,7 +105,6 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
         {poResult ? (
           <div className="space-y-4 text-xs">
-            {/* Formatted PO Document */}
             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 font-mono space-y-2 text-slate-800">
               <div className="flex justify-between items-start border-b border-slate-200 pb-2">
                 <div>
