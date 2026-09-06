@@ -11,4 +11,5 @@ namespace AfriBizInsights.Core.Interfaces;
 public interface IMlServiceClient
 {
     Task<List<DemandForecastDto>> GetProductDemandForecastsAsync(Guid tenantId);
+    Task<List<AnomalyItemDto>> DetectSalesAnomaliesAsync(Guid tenantId);
 }

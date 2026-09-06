@@ -39,7 +39,6 @@ public class MlServiceClient : IMlServiceClient
 
             var totalUnitsSold = saleItems.Sum(si => si.Quantity);
 
-            // 1. Dynamic Historical Velocity Calculation (Units sold / 30 days)
             decimal dailyRunRate = 0.5m;
             int predicted30DDemand = 15;
 
@@ -49,17 +48,14 @@ public class MlServiceClient : IMlServiceClient
                 predicted30DDemand = Math.Max(totalUnitsSold, (int)Math.Ceiling(dailyRunRate * 30m));
             }
 
-            // 2. Dynamic Days Until Stockout: (Current Stock / Daily Velocity)
             int? stockoutInDays = null;
             if (dailyRunRate > 0)
             {
                 stockoutInDays = (int)(product.CurrentStock / dailyRunRate);
             }
 
-            // 3. Dynamic Stockout Warning Flag
             bool isStockoutWarning = stockoutInDays.HasValue && stockoutInDays.Value < 30;
 
-            // 4. Dynamic Reorder Quantity: (Predicted Demand - Current Stock + Reorder Level)
             int reorderQty = 0;
             if (isStockoutWarning || product.CurrentStock <= product.ReorderLevel)
             {
@@ -120,7 +116,6 @@ public class MlServiceClient : IMlServiceClient
                 pythonSuccess = false;
             }
 
-            // Real Mathematical Fallback
             if (!pythonSuccess)
             {
                 forecasts.Add(new DemandForecastDto
@@ -139,5 +134,91 @@ public class MlServiceClient : IMlServiceClient
         }
 
         return forecasts;
+    }
+
+    public async Task<List<AnomalyItemDto>> DetectSalesAnomaliesAsync(Guid tenantId)
+    {
+        var anomalies = new List<AnomalyItemDto>();
+
+        var sales = await _context.Sales
+            .Where(s => s.TenantId == tenantId)
+            .OrderBy(s => s.SaleDate)
+            .ToListAsync();
+
+        if (sales.Count < 3) return anomalies;
+
+        var dailyHistory = sales
+            .GroupBy(s => s.SaleDate.ToString("yyyy-MM-dd"))
+            .Select(g => new
+            {
+                date = g.Key,
+                total_revenue = (double)g.Sum(x => x.TotalAmount),
+                order_count = g.Count()
+            })
+            .ToList();
+
+        // 1. Try Python ML Anomaly Detector over HTTP
+        try
+        {
+            var requestPayload = new { revenue_history = dailyHistory };
+            var content = new StringContent(
+                JsonSerializer.Serialize(requestPayload),
+                Encoding.UTF8,
+                "application/json"
+            );
+
+            var response = await _httpClient.PostAsync("/detect/anomalies", content);
+            if (response.IsSuccessStatusCode)
+            {
+                var responseString = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(responseString);
+                foreach (var item in doc.RootElement.EnumerateArray())
+                {
+                    anomalies.Add(new AnomalyItemDto
+                    {
+                        Date = item.GetProperty("date").GetString() ?? "",
+                        ActualRevenue = (decimal)item.GetProperty("actual_revenue").GetDouble(),
+                        ExpectedRevenue = (decimal)item.GetProperty("expected_revenue").GetDouble(),
+                        PercentageDeviation = (decimal)item.GetProperty("percentage_deviation").GetDouble(),
+                        Severity = item.GetProperty("severity").GetString() ?? "High",
+                        Message = item.GetProperty("message").GetString() ?? ""
+                    });
+                }
+                return anomalies;
+            }
+        }
+        catch (Exception)
+        {
+            // Python service offline fallback: compute real C# Z-Score math locally
+        }
+
+        // 2. Real C# Statistical Z-Score Fallback
+        var revenues = dailyHistory.Select(d => d.total_revenue).ToList();
+        var avgRev = revenues.Average();
+        var sumSquares = revenues.Sum(r => Math.Pow(r - avgRev, 2));
+        var stdDev = Math.Sqrt(sumSquares / revenues.Count);
+
+        if (stdDev > 0)
+        {
+            foreach (var day in dailyHistory)
+            {
+                var zScore = (day.total_revenue - avgRev) / stdDev;
+                if (zScore < -1.5)
+                {
+                    var dropPct = Math.Round(((avgRev - day.total_revenue) / avgRev) * 100, 1);
+                    anomalies.Add(new AnomalyItemDto
+                    {
+                        Date = day.date,
+                        ActualRevenue = (decimal)day.total_revenue,
+                        ExpectedRevenue = (decimal)Math.Round(avgRev, 2),
+                        PercentageDeviation = (decimal)-dropPct,
+                        Severity = dropPct > 50 ? "Critical" : "High",
+                        Message = $"Unusual revenue drop detected on {day.date}: Sales were {dropPct}% below your daily baseline."
+                    });
+                }
+            }
+        }
+
+        return anomalies;
     }
 }

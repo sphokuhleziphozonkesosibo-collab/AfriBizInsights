@@ -132,7 +132,6 @@ public class AnalyticsService : IAnalyticsService
             .Where(p => p.TenantId == tenantId && p.CurrentStock <= p.ReorderLevel)
             .CountAsync();
 
-        // Month-over-Month Growth Calculation
         var now = DateTime.UtcNow;
         var currentMonthStart = new DateTime(now.Year, now.Month, 1);
         var prevMonthStart = currentMonthStart.AddMonths(-1);
@@ -430,7 +429,29 @@ public class AnalyticsService : IAnalyticsService
         var tenantId = GetAuthenticatedTenantId();
         var alerts = new List<BusinessAlertDto>();
 
-        // 1. Low Stock Alert
+        // 1. Python ML Statistical Anomaly Detection Alerts
+        try
+        {
+            var anomalies = await _mlServiceClient.DetectSalesAnomaliesAsync(tenantId);
+            foreach (var anom in anomalies)
+            {
+                alerts.Add(new BusinessAlertDto
+                {
+                    AlertId = Guid.NewGuid(),
+                    AlertType = "Anomaly",
+                    Severity = anom.Severity,
+                    Title = $"ML Anomaly: {anom.Date}",
+                    Message = anom.Message,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+        catch (Exception)
+        {
+            // Ignore if ML service is offline
+        }
+
+        // 2. Low Stock Alert
         var lowStockProducts = await _context.Products
             .Where(p => p.TenantId == tenantId && p.CurrentStock <= p.ReorderLevel)
             .ToListAsync();
@@ -448,7 +469,7 @@ public class AnalyticsService : IAnalyticsService
             });
         }
 
-        // 2. Dead Stock Alert
+        // 3. Dead Stock Alert
         var deadStock = await GetDeadStockProductsAsync(30);
         if (deadStock.Any())
         {
@@ -464,7 +485,7 @@ public class AnalyticsService : IAnalyticsService
             });
         }
 
-        // 3. Profit Margin Alert
+        // 4. Profit Margin Alert
         var summary = await GetDashboardSummaryAsync();
         if (summary.TotalRevenue > 0 && summary.NetMarginPercentage < 15.0m)
         {
