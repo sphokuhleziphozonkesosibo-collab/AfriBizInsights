@@ -98,9 +98,9 @@ export function App() {
   }, []);
 
   const fetchDashboardData = async (
-    startDate = dateFilter.startDate,
-    endDate = dateFilter.endDate,
-    days = selectedDays
+    startDate: string | null = dateFilter.startDate,
+    endDate: string | null = dateFilter.endDate,
+    days: number = selectedDays
   ) => {
     if (!currentUser) return;
     try {
@@ -146,14 +146,16 @@ export function App() {
     if (currentUser) {
       fetchDashboardData(dateFilter.startDate, dateFilter.endDate, selectedDays);
     }
-  }, [currentUser, dateFilter, selectedDays]);
+  }, [currentUser]);
 
+  // Instant real-time filter trigger
   const handleApplyDateFilter = (
     startDate: string | null,
     endDate: string | null,
     label: string
   ) => {
     setDateFilter({ startDate, endDate, label });
+    fetchDashboardData(startDate, endDate, selectedDays);
   };
 
   const handleLogout = () => {
@@ -274,7 +276,10 @@ export function App() {
               data={trends}
               currency={currentUser?.currency || 'ZAR'}
               selectedDays={selectedDays}
-              onDaysChange={(d) => setSelectedDays(d)}
+              onDaysChange={(d) => {
+                setSelectedDays(d);
+                fetchDashboardData(dateFilter.startDate, dateFilter.endDate, d);
+              }}
             />
           </div>
           <div className="lg:col-span-1">
