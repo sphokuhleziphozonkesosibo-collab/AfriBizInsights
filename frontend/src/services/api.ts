@@ -8,7 +8,7 @@ export interface AuthUser {
   currency: string;
   fullName: string;
   email: string;
-  role: string;
+  role: string; // Owner, Manager, Cashier, Staff
 }
 
 export interface RegisterDto {
@@ -24,6 +24,21 @@ export interface RegisterDto {
 export interface LoginDto {
   email: string;
   password: string;
+}
+
+export interface CreateStaffUserDto {
+  fullName: string;
+  email: string;
+  password: string;
+  role: 'Cashier' | 'Manager' | 'Staff';
+}
+
+export interface StaffUser {
+  userId: string;
+  fullName: string;
+  email: string;
+  role: string;
+  createdAt: string;
 }
 
 export interface PaymentMethodBreakdown {
@@ -181,7 +196,7 @@ export interface IngestionResult {
   validationErrors: string[];
 }
 
-// --- API CLIENT (Using Vite Proxy) ---
+// --- API CLIENT ---
 const API_BASE_URL = '/api';
 
 const apiClient = axios.create({
@@ -196,7 +211,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// --- AUTH API ---
+// --- AUTH & STAFF API ---
 export const registerBusiness = async (dto: RegisterDto): Promise<AuthUser> => {
   const response = await apiClient.post<AuthUser>('/auth/register-business', dto);
   return response.data;
@@ -207,7 +222,21 @@ export const loginUser = async (dto: LoginDto): Promise<AuthUser> => {
   return response.data;
 };
 
-// --- ANALYTICS & TELEMETRY API (With Date Range Filtering) ---
+export const getStaffUsers = async (): Promise<StaffUser[]> => {
+  const response = await apiClient.get<StaffUser[]>('/auth/staff');
+  return response.data;
+};
+
+export const createStaffUser = async (dto: CreateStaffUserDto): Promise<StaffUser> => {
+  const response = await apiClient.post<StaffUser>('/auth/staff', dto);
+  return response.data;
+};
+
+export const deleteStaffUser = async (userId: string): Promise<void> => {
+  await apiClient.delete(`/auth/staff/${userId}`);
+};
+
+// --- ANALYTICS API (With Date Range Filtering) ---
 export const getDashboardSummary = async (
   startDate?: string | null,
   endDate?: string | null

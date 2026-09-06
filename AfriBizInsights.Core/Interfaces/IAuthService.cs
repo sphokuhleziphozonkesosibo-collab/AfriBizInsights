@@ -12,4 +12,7 @@ public interface IAuthService
 {
     Task<AuthResponseDto> RegisterBusinessAsync(RegisterBusinessDto dto);
     Task<AuthResponseDto?> LoginAsync(LoginDto dto);
+    Task<List<StaffUserDto>> GetStaffUsersAsync();
+    Task<StaffUserDto> CreateStaffUserAsync(CreateStaffUserDto dto);
+    Task DeleteStaffUserAsync(Guid userId);
 }

@@ -12,6 +12,7 @@ import { UploadModal } from './components/UploadModal';
 import { ExpenseModal } from './components/ExpenseModal';
 import { InventoryModal } from './components/InventoryModal';
 import { SupplierModal } from './components/SupplierModal';
+import { StaffModal } from './components/StaffModal';
 import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { AuthModal } from './components/AuthModal';
@@ -37,7 +38,7 @@ import {
   type DemandForecast,
   type AuthUser,
 } from './services/api';
-import { RefreshCw, AlertCircle, WifiOff } from 'lucide-react';
+import { RefreshCw, AlertCircle, WifiOff, Lock } from 'lucide-react';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
@@ -69,6 +70,7 @@ export function App() {
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isSupplierOpen, setIsSupplierOpen] = useState(false);
+  const [isStaffOpen, setIsStaffOpen] = useState(false);
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
   const [poModalData, setPoModalData] = useState<{
     isOpen: boolean;
@@ -82,7 +84,8 @@ export function App() {
     suggestedQty: 0,
   });
 
-  const isOwner = currentUser?.role === 'Owner' || !currentUser;
+  const isOwner = currentUser?.role === 'Owner' || currentUser?.role === 'Manager' || !currentUser;
+  const isCashier = currentUser?.role === 'Cashier' || currentUser?.role === 'Staff';
 
   useEffect(() => {
     const savedUser = localStorage.getItem('afribiz_user');
@@ -148,7 +151,6 @@ export function App() {
     }
   }, [currentUser]);
 
-  // Instant real-time filter trigger
   const handleApplyDateFilter = (
     startDate: string | null,
     endDate: string | null,
@@ -197,6 +199,7 @@ export function App() {
         onOpenExpense={() => setIsExpenseOpen(true)}
         onOpenInventory={() => setIsInventoryOpen(true)}
         onOpenSuppliers={() => setIsSupplierOpen(true)}
+        onOpenStaff={() => setIsStaffOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
         onDownloadBackup={handleDownloadBackup}
         onExportReport={handleExportReport}
@@ -226,6 +229,16 @@ export function App() {
           </button>
         </div>
 
+        {/* Cashier Mode Notice */}
+        {isCashier && (
+          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 font-medium">
+            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Cashier / Staff View Active:</strong> Sensitive financial margins (Net Profit, Operating Expenses, COGS) and Executive Reports are restricted by the Store Owner.
+            </span>
+          </div>
+        )}
+
         {/* Global Date Range Filter Bar */}
         <DateRangeFilter
           onApplyFilter={handleApplyDateFilter}
@@ -250,23 +263,27 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Profitability & Financial Health Cards */}
+        {/* 1. Profitability & Financial Health Cards (Owner / Manager Only) */}
         {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
 
-        {/* 2. Dead Stock & Trapped Cash Radar */}
+        {/* 2. Dead Stock & Trapped Cash Radar (Owner Only) */}
         {isOwner && <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />}
 
         {/* 3. AI Machine Learning Demand Forecasting with 1-Click PO Generator */}
         <ForecastCards
           forecasts={forecasts}
-          onOrderProduct={(prodId, prodName, suggestedQty) => {
-            setPoModalData({
-              isOpen: true,
-              productId: prodId,
-              productName: prodName,
-              suggestedQty,
-            });
-          }}
+          onOrderProduct={
+            isOwner
+              ? (prodId, prodName, suggestedQty) => {
+                  setPoModalData({
+                    isOpen: true,
+                    productId: prodId,
+                    productName: prodName,
+                    suggestedQty,
+                  });
+                }
+              : undefined
+          }
         />
 
         {/* 4. Middle Row: Sales Trend Chart & Smart Alerts */}
@@ -323,6 +340,11 @@ export function App() {
         isOpen={isSupplierOpen}
         onClose={() => setIsSupplierOpen(false)}
         onSuccess={() => fetchDashboardData()}
+      />
+
+      <StaffModal
+        isOpen={isStaffOpen}
+        onClose={() => setIsStaffOpen(false)}
       />
 
       <PurchaseOrderModal

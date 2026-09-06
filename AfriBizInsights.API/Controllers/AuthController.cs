@@ -1,5 +1,6 @@
 ﻿using AfriBizInsights.Core.DTOs.Auth;
 using AfriBizInsights.Core.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AfriBizInsights.API.Controllers;
@@ -15,6 +16,7 @@ public class AuthController : ControllerBase
         _authService = authService;
     }
 
+    [AllowAnonymous]
     [HttpPost("register-business")]
     public async Task<IActionResult> RegisterBusiness([FromBody] RegisterBusinessDto dto)
     {
@@ -29,6 +31,7 @@ public class AuthController : ControllerBase
         }
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<IActionResult> Login([FromBody] LoginDto dto)
     {
@@ -39,5 +42,66 @@ public class AuthController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    [Authorize(Roles = "Owner,Manager")]
+    [HttpGet("staff")]
+    public async Task<IActionResult> GetStaffUsers()
+    {
+        try
+        {
+            var staff = await _authService.GetStaffUsersAsync();
+            return Ok(staff);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Roles = "Owner,Manager")]
+    [HttpPost("staff")]
+    public async Task<IActionResult> CreateStaffUser([FromBody] CreateStaffUserDto dto)
+    {
+        try
+        {
+            var staff = await _authService.CreateStaffUserAsync(dto);
+            return Ok(staff);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [Authorize(Roles = "Owner")]
+    [HttpDelete("staff/{userId:guid}")]
+    public async Task<IActionResult> DeleteStaffUser(Guid userId)
+    {
+        try
+        {
+            await _authService.DeleteStaffUserAsync(userId);
+            return Ok(new { message = "Staff account removed successfully." });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Unauthorized(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

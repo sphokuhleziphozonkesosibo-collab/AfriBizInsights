@@ -15,11 +15,26 @@ public class AuthService : IAuthService
 {
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly ITenantProvider _tenantProvider;
 
-    public AuthService(ApplicationDbContext context, IConfiguration configuration)
+    public AuthService(
+        ApplicationDbContext context,
+        IConfiguration configuration,
+        ITenantProvider tenantProvider)
     {
         _context = context;
         _configuration = configuration;
+        _tenantProvider = tenantProvider;
+    }
+
+    private Guid GetAuthenticatedTenantId()
+    {
+        var tenantId = _tenantProvider.GetCurrentTenantId();
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Authentication required. No valid business tenant context found.");
+        }
+        return tenantId.Value;
     }
 
     public async Task<AuthResponseDto> RegisterBusinessAsync(RegisterBusinessDto dto)
@@ -101,6 +116,89 @@ public class AuthService : IAuthService
             Email = user.Email,
             Role = user.Role
         };
+    }
+
+    public async Task<List<StaffUserDto>> GetStaffUsersAsync()
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        return await _context.Users
+            .Where(u => u.TenantId == tenantId)
+            .OrderBy(u => u.FullName)
+            .Select(u => new StaffUserDto
+            {
+                UserId = u.UserId,
+                FullName = u.FullName,
+                Email = u.Email,
+                Role = u.Role,
+                CreatedAt = u.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<StaffUserDto> CreateStaffUserAsync(CreateStaffUserDto dto)
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        var emailExists = await _context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
+        if (emailExists)
+        {
+            throw new Exception("A user with this email address already exists.");
+        }
+
+        var validRole = dto.Role switch
+        {
+            "Manager" => "Manager",
+            "Staff" => "Staff",
+            _ => "Cashier"
+        };
+
+        var staff = new User
+        {
+            UserId = Guid.NewGuid(),
+            TenantId = tenantId,
+            FullName = dto.FullName.Trim(),
+            Email = dto.Email.Trim().ToLower(),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+            Role = validRole,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _context.Users.AddAsync(staff);
+        await _context.SaveChangesAsync();
+
+        return new StaffUserDto
+        {
+            UserId = staff.UserId,
+            FullName = staff.FullName,
+            Email = staff.Email,
+            Role = staff.Role,
+            CreatedAt = staff.CreatedAt
+        };
+    }
+
+    public async Task DeleteStaffUserAsync(Guid userId)
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.UserId == userId && u.TenantId == tenantId);
+
+        if (user == null)
+        {
+            throw new KeyNotFoundException("Staff user not found.");
+        }
+
+        if (user.Role == "Owner")
+        {
+            throw new InvalidOperationException("Cannot delete the primary store Owner account.");
+        }
+
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
     }
 
     private string GenerateJwtToken(User user, Tenant tenant)
