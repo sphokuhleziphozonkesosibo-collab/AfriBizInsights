@@ -34,22 +34,35 @@ public class AnalyticsService : IAnalyticsService
         return tenantId.Value;
     }
 
-    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync()
+    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(DateTime? startDate = null, DateTime? endDate = null)
     {
         var tenantId = GetAuthenticatedTenantId();
 
-        var sales = await _context.Sales
-            .Where(s => s.TenantId == tenantId)
-            .ToListAsync();
+        var salesQuery = _context.Sales.Where(s => s.TenantId == tenantId);
+        var expenseQuery = _context.Expenses.Where(e => e.TenantId == tenantId);
+        var saleItemsQuery = _context.SaleItems.Include(si => si.Product).Include(si => si.Sale).Where(si => si.TenantId == tenantId);
 
+        if (startDate.HasValue)
+        {
+            salesQuery = salesQuery.Where(s => s.SaleDate >= startDate.Value);
+            expenseQuery = expenseQuery.Where(e => e.ExpenseDate >= startDate.Value);
+            saleItemsQuery = saleItemsQuery.Where(si => si.Sale.SaleDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            salesQuery = salesQuery.Where(s => s.SaleDate <= endOfDay);
+            expenseQuery = expenseQuery.Where(e => e.ExpenseDate <= endOfDay);
+            saleItemsQuery = saleItemsQuery.Where(si => si.Sale.SaleDate <= endOfDay);
+        }
+
+        var sales = await salesQuery.ToListAsync();
         var totalRevenue = sales.Sum(s => s.TotalAmount);
         var totalOrders = sales.Count;
         var aov = totalOrders > 0 ? Math.Round(totalRevenue / totalOrders, 2) : 0;
 
-        var saleItems = await _context.SaleItems
-            .Include(si => si.Product)
-            .Where(si => si.TenantId == tenantId)
-            .ToListAsync();
+        var saleItems = await saleItemsQuery.ToListAsync();
 
         decimal cogs = 0;
         foreach (var item in saleItems)
@@ -60,10 +73,7 @@ public class AnalyticsService : IAnalyticsService
             cogs += unitCost * item.Quantity;
         }
 
-        var expenses = await _context.Expenses
-            .Where(e => e.TenantId == tenantId)
-            .ToListAsync();
-
+        var expenses = await expenseQuery.ToListAsync();
         var totalExpenses = expenses.Sum(e => e.Amount);
         var grossProfit = totalRevenue - cogs;
         var netProfit = grossProfit - totalExpenses;
@@ -89,7 +99,7 @@ public class AnalyticsService : IAnalyticsService
             repeatCustomerPct = Math.Round(((decimal)repeatCount / uniqueCustomers) * 100, 1);
         }
 
-        // Payment Method Breakdown Telemetry
+        // Payment Channels Telemetry
         var paymentBreakdown = sales
             .GroupBy(s => string.IsNullOrWhiteSpace(s.PaymentMethod) ? "Cash" : s.PaymentMethod.Trim())
             .Select(g => new PaymentMethodBreakdownDto
@@ -122,12 +132,18 @@ public class AnalyticsService : IAnalyticsService
             .Where(p => p.TenantId == tenantId && p.CurrentStock <= p.ReorderLevel)
             .CountAsync();
 
+        // Month-over-Month Growth Calculation
         var now = DateTime.UtcNow;
         var currentMonthStart = new DateTime(now.Year, now.Month, 1);
         var prevMonthStart = currentMonthStart.AddMonths(-1);
 
-        var thisMonthRev = sales.Where(s => s.SaleDate >= currentMonthStart).Sum(s => s.TotalAmount);
-        var prevMonthRev = sales.Where(s => s.SaleDate >= prevMonthStart && s.SaleDate < currentMonthStart).Sum(s => s.TotalAmount);
+        var thisMonthRev = await _context.Sales
+            .Where(s => s.TenantId == tenantId && s.SaleDate >= currentMonthStart)
+            .SumAsync(s => s.TotalAmount);
+
+        var prevMonthRev = await _context.Sales
+            .Where(s => s.TenantId == tenantId && s.SaleDate >= prevMonthStart && s.SaleDate < currentMonthStart)
+            .SumAsync(s => s.TotalAmount);
 
         decimal growthPct = 0;
         if (prevMonthRev > 0)
@@ -155,13 +171,96 @@ public class AnalyticsService : IAnalyticsService
         };
     }
 
-    public async Task<List<TopCustomerDto>> GetTopCustomersAsync(int limit = 10)
+    public async Task<List<SalesTrendDto>> GetSalesTrendAsync(int days = 30, DateTime? startDate = null, DateTime? endDate = null)
     {
         var tenantId = GetAuthenticatedTenantId();
 
-        var sales = await _context.Sales
-            .Where(s => s.TenantId == tenantId && !string.IsNullOrWhiteSpace(s.CustomerIdentifier))
+        var query = _context.Sales.Where(s => s.TenantId == tenantId);
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(s => s.SaleDate >= startDate.Value);
+        }
+        else
+        {
+            var cutoffDate = DateTime.UtcNow.Date.AddDays(-days);
+            query = query.Where(s => s.SaleDate >= cutoffDate);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(s => s.SaleDate <= endOfDay);
+        }
+
+        var sales = await query.OrderBy(s => s.SaleDate).ToListAsync();
+
+        return sales
+            .GroupBy(s => s.SaleDate.ToString("yyyy-MM-dd"))
+            .Select(g => new SalesTrendDto
+            {
+                Date = g.Key,
+                TotalRevenue = g.Sum(x => x.TotalAmount),
+                OrderCount = g.Count()
+            })
+            .OrderBy(t => t.Date)
+            .ToList();
+    }
+
+    public async Task<List<TopProductDto>> GetTopProductsAsync(int limit = 5, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        var query = _context.SaleItems
+            .Include(si => si.Product)
+            .Include(si => si.Sale)
+            .Where(si => si.TenantId == tenantId);
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(si => si.Sale.SaleDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(si => si.Sale.SaleDate <= endOfDay);
+        }
+
+        return await query
+            .GroupBy(si => new { si.ProductId, si.Product.Name, si.Product.Category })
+            .Select(g => new TopProductDto
+            {
+                ProductId = g.Key.ProductId,
+                Name = g.Key.Name,
+                Category = g.Key.Category,
+                TotalUnitsSold = g.Sum(x => x.Quantity),
+                TotalRevenueGenerated = g.Sum(x => x.TotalPrice)
+            })
+            .OrderByDescending(x => x.TotalRevenueGenerated)
+            .Take(limit)
             .ToListAsync();
+    }
+
+    public async Task<List<TopCustomerDto>> GetTopCustomersAsync(int limit = 10, DateTime? startDate = null, DateTime? endDate = null)
+    {
+        var tenantId = GetAuthenticatedTenantId();
+
+        var query = _context.Sales
+            .Where(s => s.TenantId == tenantId && !string.IsNullOrWhiteSpace(s.CustomerIdentifier));
+
+        if (startDate.HasValue)
+        {
+            query = query.Where(s => s.SaleDate >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            var endOfDay = endDate.Value.Date.AddDays(1).AddTicks(-1);
+            query = query.Where(s => s.SaleDate <= endOfDay);
+        }
+
+        var sales = await query.ToListAsync();
 
         return sales
             .GroupBy(s => s.CustomerIdentifier!.Trim())
@@ -324,49 +423,6 @@ public class AnalyticsService : IAnalyticsService
             CurrentStock = product.CurrentStock,
             ReorderLevel = product.ReorderLevel
         };
-    }
-
-    public async Task<List<SalesTrendDto>> GetSalesTrendAsync(int days = 30)
-    {
-        var tenantId = GetAuthenticatedTenantId();
-        var cutoffDate = DateTime.UtcNow.Date.AddDays(-days);
-
-        var sales = await _context.Sales
-            .Where(s => s.TenantId == tenantId && s.SaleDate >= cutoffDate)
-            .OrderBy(s => s.SaleDate)
-            .ToListAsync();
-
-        return sales
-            .GroupBy(s => s.SaleDate.ToString("yyyy-MM-dd"))
-            .Select(g => new SalesTrendDto
-            {
-                Date = g.Key,
-                TotalRevenue = g.Sum(x => x.TotalAmount),
-                OrderCount = g.Count()
-            })
-            .OrderBy(t => t.Date)
-            .ToList();
-    }
-
-    public async Task<List<TopProductDto>> GetTopProductsAsync(int limit = 5)
-    {
-        var tenantId = GetAuthenticatedTenantId();
-
-        return await _context.SaleItems
-            .Include(si => si.Product)
-            .Where(si => si.TenantId == tenantId)
-            .GroupBy(si => new { si.ProductId, si.Product.Name, si.Product.Category })
-            .Select(g => new TopProductDto
-            {
-                ProductId = g.Key.ProductId,
-                Name = g.Key.Name,
-                Category = g.Key.Category,
-                TotalUnitsSold = g.Sum(x => x.Quantity),
-                TotalRevenueGenerated = g.Sum(x => x.TotalPrice)
-            })
-            .OrderByDescending(x => x.TotalRevenueGenerated)
-            .Take(limit)
-            .ToListAsync();
     }
 
     public async Task<List<BusinessAlertDto>> GetBusinessAlertsAsync()

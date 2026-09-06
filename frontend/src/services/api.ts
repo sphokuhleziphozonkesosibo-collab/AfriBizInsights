@@ -181,7 +181,7 @@ export interface IngestionResult {
   validationErrors: string[];
 }
 
-// --- API CLIENT ---
+// --- API CLIENT (Using Vite Proxy) ---
 const API_BASE_URL = '/api';
 
 const apiClient = axios.create({
@@ -196,7 +196,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// --- AUTH ---
+// --- AUTH API ---
 export const registerBusiness = async (dto: RegisterDto): Promise<AuthUser> => {
   const response = await apiClient.post<AuthUser>('/auth/register-business', dto);
   return response.data;
@@ -207,24 +207,57 @@ export const loginUser = async (dto: LoginDto): Promise<AuthUser> => {
   return response.data;
 };
 
-// --- ANALYTICS ---
-export const getDashboardSummary = async (): Promise<DashboardSummary> => {
-  const response = await apiClient.get<DashboardSummary>('/analytics/summary');
+// --- ANALYTICS & TELEMETRY API (With Date Range Filtering) ---
+export const getDashboardSummary = async (
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<DashboardSummary> => {
+  let url = '/analytics/summary';
+  const params: string[] = [];
+  if (startDate) params.push(`startDate=${startDate}`);
+  if (endDate) params.push(`endDate=${endDate}`);
+  if (params.length > 0) url += `?${params.join('&')}`;
+
+  const response = await apiClient.get<DashboardSummary>(url);
   return response.data;
 };
 
-export const getSalesTrend = async (days: number = 30): Promise<SalesTrend[]> => {
-  const response = await apiClient.get<SalesTrend[]>(`/analytics/sales-trend?days=${days}`);
+export const getSalesTrend = async (
+  days: number = 30,
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<SalesTrend[]> => {
+  let url = `/analytics/sales-trend?days=${days}`;
+  if (startDate) url += `&startDate=${startDate}`;
+  if (endDate) url += `&endDate=${endDate}`;
+
+  const response = await apiClient.get<SalesTrend[]>(url);
   return response.data;
 };
 
-export const getTopProducts = async (limit: number = 5): Promise<TopProduct[]> => {
-  const response = await apiClient.get<TopProduct[]>(`/analytics/top-products?limit=${limit}`);
+export const getTopProducts = async (
+  limit: number = 5,
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<TopProduct[]> => {
+  let url = `/analytics/top-products?limit=${limit}`;
+  if (startDate) url += `&startDate=${startDate}`;
+  if (endDate) url += `&endDate=${endDate}`;
+
+  const response = await apiClient.get<TopProduct[]>(url);
   return response.data;
 };
 
-export const getTopCustomers = async (limit: number = 10): Promise<TopCustomer[]> => {
-  const response = await apiClient.get<TopCustomer[]>(`/analytics/top-customers?limit=${limit}`);
+export const getTopCustomers = async (
+  limit: number = 10,
+  startDate?: string | null,
+  endDate?: string | null
+): Promise<TopCustomer[]> => {
+  let url = `/analytics/top-customers?limit=${limit}`;
+  if (startDate) url += `&startDate=${startDate}`;
+  if (endDate) url += `&endDate=${endDate}`;
+
+  const response = await apiClient.get<TopCustomer[]>(url);
   return response.data;
 };
 

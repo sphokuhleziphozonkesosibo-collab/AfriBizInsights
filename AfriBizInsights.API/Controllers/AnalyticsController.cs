@@ -19,11 +19,13 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("summary")]
-    public async Task<IActionResult> GetDashboardSummary()
+    public async Task<IActionResult> GetDashboardSummary(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var summary = await _analyticsService.GetDashboardSummaryAsync();
+            var summary = await _analyticsService.GetDashboardSummaryAsync(startDate, endDate);
             return Ok(summary);
         }
         catch (UnauthorizedAccessException ex)
@@ -37,11 +39,14 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("sales-trend")]
-    public async Task<IActionResult> GetSalesTrend([FromQuery] int days = 30)
+    public async Task<IActionResult> GetSalesTrend(
+        [FromQuery] int days = 30,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var trend = await _analyticsService.GetSalesTrendAsync(days);
+            var trend = await _analyticsService.GetSalesTrendAsync(days, startDate, endDate);
             return Ok(trend);
         }
         catch (UnauthorizedAccessException ex)
@@ -55,11 +60,14 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("top-products")]
-    public async Task<IActionResult> GetTopProducts([FromQuery] int limit = 5)
+    public async Task<IActionResult> GetTopProducts(
+        [FromQuery] int limit = 5,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var top = await _analyticsService.GetTopProductsAsync(limit);
+            var top = await _analyticsService.GetTopProductsAsync(limit, startDate, endDate);
             return Ok(top);
         }
         catch (UnauthorizedAccessException ex)
@@ -73,11 +81,14 @@ public class AnalyticsController : ControllerBase
     }
 
     [HttpGet("top-customers")]
-    public async Task<IActionResult> GetTopCustomers([FromQuery] int limit = 10)
+    public async Task<IActionResult> GetTopCustomers(
+        [FromQuery] int limit = 10,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null)
     {
         try
         {
-            var customers = await _analyticsService.GetTopCustomersAsync(limit);
+            var customers = await _analyticsService.GetTopCustomersAsync(limit, startDate, endDate);
             return Ok(customers);
         }
         catch (UnauthorizedAccessException ex)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Navbar } from './components/Navbar';
+import { DateRangeFilter } from './components/DateRangeFilter';
 import { KpiCards } from './components/KpiCards';
 import { SalesChart } from './components/SalesChart';
 import { AlertsList } from './components/AlertsList';
@@ -52,6 +53,17 @@ export function App() {
   const [isOffline, setIsOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Date Filter State
+  const [dateFilter, setDateFilter] = useState<{
+    startDate: string | null;
+    endDate: string | null;
+    label: string;
+  }>({
+    startDate: null,
+    endDate: null,
+    label: 'All Time',
+  });
+
   // Modals
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isExpenseOpen, setIsExpenseOpen] = useState(false);
@@ -85,7 +97,11 @@ export function App() {
     }
   }, []);
 
-  const fetchDashboardData = async (days = selectedDays) => {
+  const fetchDashboardData = async (
+    startDate = dateFilter.startDate,
+    endDate = dateFilter.endDate,
+    days = selectedDays
+  ) => {
     if (!currentUser) return;
     try {
       setLoading(true);
@@ -94,10 +110,10 @@ export function App() {
 
       const [sumData, trendData, prodData, custData, alertData, deadData, forecastData] =
         await Promise.all([
-          getDashboardSummary(),
-          getSalesTrend(days),
-          getTopProducts(5),
-          getTopCustomers(10),
+          getDashboardSummary(startDate, endDate),
+          getSalesTrend(days, startDate, endDate),
+          getTopProducts(5, startDate, endDate),
+          getTopCustomers(10, startDate, endDate),
           getBusinessAlerts(),
           getDeadStockProducts(30),
           getProductForecasts(),
@@ -111,11 +127,9 @@ export function App() {
       setDeadStock(deadData);
       setForecasts(forecastData);
 
-      // Save to Session Storage for Loadshedding / Offline Resilience
       sessionStorage.setItem('afribiz_cached_summary', JSON.stringify(sumData));
-      sessionStorage.setItem('afribiz_cached_trends', JSON.stringify(trendData));
     } catch (err: any) {
-      console.warn('Network error or loadshedding drop. Loading offline cache...', err);
+      console.warn('Network error or offline mode. Loading cache...', err);
       const cachedSum = sessionStorage.getItem('afribiz_cached_summary');
       if (cachedSum) {
         setSummary(JSON.parse(cachedSum));
@@ -130,9 +144,17 @@ export function App() {
 
   useEffect(() => {
     if (currentUser) {
-      fetchDashboardData(selectedDays);
+      fetchDashboardData(dateFilter.startDate, dateFilter.endDate, selectedDays);
     }
-  }, [currentUser, selectedDays]);
+  }, [currentUser, dateFilter, selectedDays]);
+
+  const handleApplyDateFilter = (
+    startDate: string | null,
+    endDate: string | null,
+    label: string
+  ) => {
+    setDateFilter({ startDate, endDate, label });
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('afribiz_token');
@@ -180,20 +202,20 @@ export function App() {
       />
 
       {/* Main Dashboard Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Page Title & Refresh */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {/* Header & Refresh */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black tracking-tight text-slate-900">
               Financial Telemetry & Profitability Radar
             </h1>
             <p className="text-xs text-slate-500 mt-1">
-              Gross sales, operational expenses, True Net Profit & ML demand forecasts
+              Real-time sales, operational expenses, True Net Profit & ML demand forecasts
             </p>
           </div>
 
           <button
-            onClick={() => fetchDashboardData(selectedDays)}
+            onClick={() => fetchDashboardData()}
             disabled={loading || !currentUser}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
           >
@@ -201,6 +223,12 @@ export function App() {
             <span>Refresh Telemetry</span>
           </button>
         </div>
+
+        {/* Global Date Range Filter Bar */}
+        <DateRangeFilter
+          onApplyFilter={handleApplyDateFilter}
+          activeLabel={dateFilter.label}
+        />
 
         {/* Loadshedding / Offline Indicator */}
         {isOffline && (
@@ -220,7 +248,7 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Profitability & Financial Health Cards (Owner Only) */}
+        {/* 1. Profitability & Financial Health Cards */}
         {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
 
         {/* 2. Dead Stock & Trapped Cash Radar */}
@@ -265,45 +293,33 @@ export function App() {
         </div>
       </main>
 
-      {/* Ingestion Wizard Modal */}
+      {/* Modals */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onSuccess={() => {
-          fetchDashboardData(selectedDays);
-        }}
+        onSuccess={() => fetchDashboardData()}
       />
 
-      {/* Expense Modal */}
       <ExpenseModal
         isOpen={isExpenseOpen}
         onClose={() => setIsExpenseOpen(false)}
-        onSuccess={() => {
-          fetchDashboardData(selectedDays);
-        }}
+        onSuccess={() => fetchDashboardData()}
         currency={currentUser?.currency || 'ZAR'}
       />
 
-      {/* Stock Manager Modal */}
       <InventoryModal
         isOpen={isInventoryOpen}
         onClose={() => setIsInventoryOpen(false)}
-        onSuccess={() => {
-          fetchDashboardData(selectedDays);
-        }}
+        onSuccess={() => fetchDashboardData()}
         currency={currentUser?.currency || 'ZAR'}
       />
 
-      {/* Supplier Directory Modal */}
       <SupplierModal
         isOpen={isSupplierOpen}
         onClose={() => setIsSupplierOpen(false)}
-        onSuccess={() => {
-          fetchDashboardData(selectedDays);
-        }}
+        onSuccess={() => fetchDashboardData()}
       />
 
-      {/* 1-Click Purchase Order (PO) Modal */}
       <PurchaseOrderModal
         isOpen={poModalData.isOpen}
         onClose={() => setPoModalData({ ...poModalData, isOpen: false })}
@@ -313,7 +329,6 @@ export function App() {
         currency={currentUser?.currency || 'ZAR'}
       />
 
-      {/* WhatsApp Modal */}
       <WhatsAppModal
         isOpen={isWhatsAppOpen}
         onClose={() => setIsWhatsAppOpen(false)}
