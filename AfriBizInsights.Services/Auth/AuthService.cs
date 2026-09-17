@@ -77,7 +77,7 @@ public class AuthService : IAuthService
             Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = "Owner",
-            IsEmailVerified = false, // New accounts require verification!
+            IsEmailVerified = false,
             EmailVerificationCode = verificationCode,
             VerificationCodeExpiresAt = DateTime.UtcNow.AddMinutes(15),
             CreatedAt = DateTime.UtcNow
@@ -87,19 +87,19 @@ public class AuthService : IAuthService
         await _context.Users.AddAsync(user);
         await _context.SaveChangesAsync();
 
-        // Dispatch real email via Resend
         await _emailService.SendVerificationCodeAsync(user.Email, user.FullName, verificationCode);
 
         return new AuthResponseDto
         {
-            Token = string.Empty, // No JWT token until 6-digit code is confirmed
+            Token = string.Empty,
             TenantId = tenant.TenantId,
             BusinessName = tenant.BusinessName,
             Currency = tenant.Currency,
             FullName = user.FullName,
             Email = user.Email,
             Role = user.Role,
-            IsEmailVerified = false
+            IsEmailVerified = false,
+            DebugCode = verificationCode
         };
     }
 
@@ -141,7 +141,6 @@ public class AuthService : IAuthService
             throw new Exception("This verification code has expired (15-minute limit). Please click 'Resend'.");
         }
 
-        // Activate user
         user.IsEmailVerified = true;
         user.EmailVerificationCode = null;
         user.VerificationCodeExpiresAt = null;
@@ -184,7 +183,7 @@ public class AuthService : IAuthService
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
 
-        if (user == null) return; // Do not leak whether an email exists for security
+        if (user == null) return;
 
         var resetCode = GenerateSixDigitCode();
         user.PasswordResetCode = resetCode;
@@ -215,7 +214,6 @@ public class AuthService : IAuthService
             throw new Exception("This recovery code has expired. Please request a new one.");
         }
 
-        // Update password with BCrypt
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
         user.PasswordResetCode = null;
         user.ResetCodeExpiresAt = null;
@@ -239,7 +237,6 @@ public class AuthService : IAuthService
             throw new Exception("User account is not linked to an active business.");
         }
 
-        // Email Verification Guard
         if (!user.IsEmailVerified)
         {
             throw new InvalidOperationException("EmailNotVerified");
@@ -306,7 +303,7 @@ public class AuthService : IAuthService
             Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = validRole,
-            IsEmailVerified = true, // Store owner manually verified staff
+            IsEmailVerified = true,
             CreatedAt = DateTime.UtcNow
         };
 

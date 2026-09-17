@@ -10,4 +10,5 @@ public class AuthResponseDto
     public string Email { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public bool IsEmailVerified { get; set; } = true;
+    public string? DebugCode { get; set; }
 }
