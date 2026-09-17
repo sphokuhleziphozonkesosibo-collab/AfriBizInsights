@@ -17,6 +17,7 @@ import { StaffModal } from './components/StaffModal';
 import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 import { WhatsAppModal } from './components/WhatsAppModal';
 import { AuthModal } from './components/AuthModal';
+import { ToastContainer, type ToastMessage } from './components/Toast';
 import {
   exportBusinessReport,
   generateWhatsAppSummary,
@@ -44,6 +45,8 @@ import { RefreshCw, AlertCircle, WifiOff, Lock } from 'lucide-react';
 export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [currentView, setCurrentView] = useState<DashboardView>('overview');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
   // Telemetry State
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -90,6 +93,15 @@ export function App() {
 
   const isOwner = currentUser?.role === 'Owner' || currentUser?.role === 'Manager' || !currentUser;
   const isCashier = currentUser?.role === 'Cashier' || currentUser?.role === 'Staff';
+
+  const addToast = (type: 'success' | 'error' | 'info', title: string, message?: string) => {
+    const id = Date.now().toString();
+    setToasts((prev) => [...prev, { id, type, title, message }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   useEffect(() => {
     const savedUser = localStorage.getItem('afribiz_user');
@@ -162,6 +174,7 @@ export function App() {
   ) => {
     setDateFilter({ startDate, endDate, label });
     fetchDashboardData(startDate, endDate, selectedDays);
+    addToast('info', 'Filter Applied', `Viewing telemetry for ${label}`);
   };
 
   const handleLogout = () => {
@@ -176,6 +189,17 @@ export function App() {
     setAlerts([]);
     setDeadStock([]);
     setForecasts([]);
+    addToast('info', 'Signed Out', 'You have been securely logged out.');
+  };
+
+  const handleExportReport = () => {
+    exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts);
+    addToast('success', 'Executive Report Generated', 'Print dialog opened.');
+  };
+
+  const handleDownloadBackup = () => {
+    downloadStoreBackupCsv(currentUser, summary, topProducts, deadStock);
+    addToast('success', 'Store Backup Downloaded', 'Full store spreadsheet exported.');
   };
 
   return (
@@ -184,37 +208,43 @@ export function App() {
         <AuthModal
           onSuccess={(user) => {
             setCurrentUser(user);
+            addToast('success', `Welcome, ${user.fullName}!`, `Loaded ${user.businessName}`);
           }}
         />
       )}
 
-      {/* 1. Professional Enterprise Sidebar */}
+      {/* Floating Modern Toast Container */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
+      {/* Responsive Enterprise Sidebar (Desktop + Mobile Drawer) */}
       <Sidebar
         currentView={currentView}
         onViewChange={(v) => setCurrentView(v)}
         user={currentUser}
+        isOpenMobile={isMobileMenuOpen}
+        onCloseMobile={() => setIsMobileMenuOpen(false)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
-        onDownloadBackup={() => downloadStoreBackupCsv(currentUser, summary, topProducts, deadStock)}
-        onExportReport={() => exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts)}
+        onDownloadBackup={handleDownloadBackup}
+        onExportReport={handleExportReport}
       />
 
-      {/* 2. Main Content Canvas */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar */}
         <Navbar
           user={currentUser}
           onOpenUpload={() => setIsUploadOpen(true)}
           onOpenExpense={() => setIsExpenseOpen(true)}
           onOpenStaff={() => setIsStaffOpen(true)}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
           onLogout={handleLogout}
         />
 
-        {/* Workspace Canvas */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 space-y-6">
-          {/* Header & Filter Bar */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        {/* Main Canvas */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+          {/* Header & Refresh */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight capitalize">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight capitalize">
                 {currentView === 'overview'
                   ? 'Executive Financial Telemetry'
                   : currentView === 'financials'
@@ -234,9 +264,12 @@ export function App() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => fetchDashboardData()}
+                onClick={() => {
+                  fetchDashboardData();
+                  addToast('info', 'Telemetry Refreshed', 'Latest cloud numbers synchronized.');
+                }}
                 disabled={loading || !currentUser}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-all cursor-pointer"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                 <span>Refresh</span>
@@ -244,7 +277,7 @@ export function App() {
             </div>
           </div>
 
-          {/* Cashier Guard Banner */}
+          {/* Cashier Banner */}
           {isCashier && (
             <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 font-medium">
               <Lock className="h-4 w-4 text-amber-600 shrink-0" />
@@ -254,7 +287,7 @@ export function App() {
             </div>
           )}
 
-          {/* Global Date Filter */}
+          {/* Global Date Filter Bar */}
           <DateRangeFilter
             onApplyFilter={handleApplyDateFilter}
             activeLabel={dateFilter.label}
@@ -277,9 +310,7 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 1: EXECUTIVE OVERVIEW VIEW                              */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 1: EXECUTIVE OVERVIEW */}
           {currentView === 'overview' && (
             <div className="space-y-6">
               {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
@@ -308,9 +339,7 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 2: FINANCIALS & PROFITABILITY VIEW                     */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 2: FINANCIALS */}
           {currentView === 'financials' && isOwner && (
             <div className="space-y-6">
               <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
@@ -329,20 +358,18 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 3: INVENTORY & DEAD STOCK RADAR VIEW                   */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 3: INVENTORY */}
           {currentView === 'inventory' && (
             <div className="space-y-6">
               {isOwner && <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />}
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex justify-between items-center">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">Shelf Inventory & Price Management</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Quickly adjust live stock numbers and price tags</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Adjust live stock numbers and price tags directly</p>
                 </div>
                 <button
                   onClick={() => setIsInventoryOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer self-start sm:self-auto"
                 >
                   Open Stock Editor
                 </button>
@@ -351,9 +378,7 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 4: AI PREDICTIVE FORECASTS VIEW                        */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 4: AI FORECASTS */}
           {currentView === 'forecasts' && (
             <div className="space-y-6">
               <ForecastCards
@@ -375,9 +400,7 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 5: CUSTOMER CRM & RETENTION VIEW                       */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 5: CUSTOMERS CRM */}
           {currentView === 'customers' && (
             <div className="space-y-6">
               <TopCustomersTable customers={topCustomers} currency={currentUser?.currency || 'ZAR'} />
@@ -385,19 +408,17 @@ export function App() {
             </div>
           )}
 
-          {/* ═════════════════════════════════════════════════════════════ */}
-          {/* TAB 6: SUPPLIERS & PURCHASE ORDERS VIEW                    */}
-          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 6: SUPPLIERS */}
           {currentView === 'suppliers' && isOwner && (
             <div className="space-y-6">
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex justify-between items-center">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                 <div>
                   <h3 className="font-bold text-slate-900 text-sm">Vendor & Distributor Management</h3>
                   <p className="text-xs text-slate-500 mt-0.5">Manage supplier directory, lead times, and dispatch POs</p>
                 </div>
                 <button
                   onClick={() => setIsSupplierOpen(true)}
-                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer self-start sm:self-auto"
                 >
                   Manage Suppliers
                 </button>
@@ -423,27 +444,39 @@ export function App() {
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
-        onSuccess={() => fetchDashboardData()}
+        onSuccess={() => {
+          fetchDashboardData();
+          addToast('success', 'Sales Import Complete', 'New transactions added & stock adjusted.');
+        }}
       />
 
       <ExpenseModal
         isOpen={isExpenseOpen}
         onClose={() => setIsExpenseOpen(false)}
-        onSuccess={() => fetchDashboardData()}
+        onSuccess={() => {
+          fetchDashboardData();
+          addToast('success', 'Operating Cost Logged', 'Net profit recalculated dynamically.');
+        }}
         currency={currentUser?.currency || 'ZAR'}
       />
 
       <InventoryModal
         isOpen={isInventoryOpen}
         onClose={() => setIsInventoryOpen(false)}
-        onSuccess={() => fetchDashboardData()}
+        onSuccess={() => {
+          fetchDashboardData();
+          addToast('success', 'Stock Levels Updated', 'Shelf inventory synchronized.');
+        }}
         currency={currentUser?.currency || 'ZAR'}
       />
 
       <SupplierModal
         isOpen={isSupplierOpen}
         onClose={() => setIsSupplierOpen(false)}
-        onSuccess={() => fetchDashboardData()}
+        onSuccess={() => {
+          fetchDashboardData();
+          addToast('success', 'Supplier Saved', 'Vendor directory updated.');
+        }}
       />
 
       <StaffModal
