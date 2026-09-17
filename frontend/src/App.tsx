@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Sidebar, type DashboardView } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { DateRangeFilter } from './components/DateRangeFilter';
 import { KpiCards } from './components/KpiCards';
@@ -42,6 +43,9 @@ import { RefreshCw, AlertCircle, WifiOff, Lock } from 'lucide-react';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentView, setCurrentView] = useState<DashboardView>('overview');
+
+  // Telemetry State
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<SalesTrend[]>([]);
   const [selectedDays, setSelectedDays] = useState<number>(30);
@@ -174,16 +178,8 @@ export function App() {
     setForecasts([]);
   };
 
-  const handleExportReport = () => {
-    exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts);
-  };
-
-  const handleDownloadBackup = () => {
-    downloadStoreBackupCsv(currentUser, summary, topProducts, deadStock);
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans">
       {!currentUser && (
         <AuthModal
           onSuccess={(user) => {
@@ -192,130 +188,238 @@ export function App() {
         />
       )}
 
-      {/* Top Navigation */}
-      <Navbar
+      {/* 1. Professional Enterprise Sidebar */}
+      <Sidebar
+        currentView={currentView}
+        onViewChange={(v) => setCurrentView(v)}
         user={currentUser}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        onOpenExpense={() => setIsExpenseOpen(true)}
-        onOpenInventory={() => setIsInventoryOpen(true)}
-        onOpenSuppliers={() => setIsSupplierOpen(true)}
-        onOpenStaff={() => setIsStaffOpen(true)}
         onOpenWhatsApp={() => setIsWhatsAppOpen(true)}
-        onDownloadBackup={handleDownloadBackup}
-        onExportReport={handleExportReport}
-        onLogout={handleLogout}
+        onDownloadBackup={() => downloadStoreBackupCsv(currentUser, summary, topProducts, deadStock)}
+        onExportReport={() => exportBusinessReport(currentUser, summary, topProducts, deadStock, forecasts)}
       />
 
-      {/* Main Dashboard Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {/* Header & Refresh */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900">
-              Financial Telemetry & Profitability Radar
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              Real-time sales, operational expenses, True Net Profit & ML demand forecasts
-            </p>
-          </div>
-
-          <button
-            onClick={() => fetchDashboardData()}
-            disabled={loading || !currentUser}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh Telemetry</span>
-          </button>
-        </div>
-
-        {/* Cashier Mode Notice */}
-        {isCashier && (
-          <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 font-medium">
-            <Lock className="h-4 w-4 text-amber-600 shrink-0" />
-            <span>
-              <strong>Cashier / Staff View Active:</strong> Sensitive financial margins (Net Profit, Operating Expenses, COGS) and Executive Reports are restricted by the Store Owner.
-            </span>
-          </div>
-        )}
-
-        {/* Global Date Range Filter Bar */}
-        <DateRangeFilter
-          onApplyFilter={handleApplyDateFilter}
-          activeLabel={dateFilter.label}
+      {/* 2. Main Content Canvas */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Navbar */}
+        <Navbar
+          user={currentUser}
+          onOpenUpload={() => setIsUploadOpen(true)}
+          onOpenExpense={() => setIsExpenseOpen(true)}
+          onOpenStaff={() => setIsStaffOpen(true)}
+          onLogout={handleLogout}
         />
 
-        {/* Loadshedding / Offline Indicator */}
-        {isOffline && (
-          <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-center gap-3 font-medium">
-            <WifiOff className="h-4 w-4 text-indigo-600 shrink-0" />
-            <span>Loadshedding / Offline Mode: Displaying last saved telemetry cache.</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-3">
-            <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+        {/* Workspace Canvas */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 space-y-6">
+          {/* Header & Filter Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
             <div>
-              <p className="font-bold">Connection Warning</p>
-              <p className="mt-0.5">{error}</p>
+              <h1 className="text-xl font-black text-slate-900 tracking-tight capitalize">
+                {currentView === 'overview'
+                  ? 'Executive Financial Telemetry'
+                  : currentView === 'financials'
+                  ? 'Profitability & Margin Breakdown'
+                  : currentView === 'inventory'
+                  ? 'Inventory Control & Dead Stock Radar'
+                  : currentView === 'forecasts'
+                  ? 'AI Predictive Demand Engine'
+                  : currentView === 'customers'
+                  ? 'Customer CRM & Retention Analytics'
+                  : 'Supplier & Vendor Directory'}
+              </h1>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Real-time multi-tenant analytics and automated decision intelligence
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => fetchDashboardData()}
+                disabled={loading || !currentUser}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
             </div>
           </div>
-        )}
 
-        {/* 1. Profitability & Financial Health Cards (Owner / Manager Only) */}
-        {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
+          {/* Cashier Guard Banner */}
+          {isCashier && (
+            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2.5 font-medium">
+              <Lock className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Cashier Mode Active:</strong> Sensitive financial margins and executive reports are restricted by the Store Owner.
+              </span>
+            </div>
+          )}
 
-        {/* 2. Dead Stock & Trapped Cash Radar (Owner Only) */}
-        {isOwner && <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />}
+          {/* Global Date Filter */}
+          <DateRangeFilter
+            onApplyFilter={handleApplyDateFilter}
+            activeLabel={dateFilter.label}
+          />
 
-        {/* 3. AI Machine Learning Demand Forecasting with 1-Click PO Generator */}
-        <ForecastCards
-          forecasts={forecasts}
-          onOrderProduct={
-            isOwner
-              ? (prodId, prodName, suggestedQty) => {
+          {isOffline && (
+            <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs flex items-center gap-3 font-medium">
+              <WifiOff className="h-4 w-4 text-indigo-600 shrink-0" />
+              <span>Loadshedding / Offline Mode: Displaying last saved telemetry cache.</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" />
+              <div>
+                <p className="font-bold">Connection Warning</p>
+                <p className="mt-0.5">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 1: EXECUTIVE OVERVIEW VIEW                              */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'overview' && (
+            <div className="space-y-6">
+              {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2">
+                  <SalesChart
+                    data={trends}
+                    currency={currentUser?.currency || 'ZAR'}
+                    selectedDays={selectedDays}
+                    onDaysChange={(d) => {
+                      setSelectedDays(d);
+                      fetchDashboardData(dateFilter.startDate, dateFilter.endDate, d);
+                    }}
+                  />
+                </div>
+                <div className="lg:col-span-1">
+                  <AlertsList alerts={alerts} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
+                <TopCustomersTable customers={topCustomers} currency={currentUser?.currency || 'ZAR'} />
+              </div>
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 2: FINANCIALS & PROFITABILITY VIEW                     */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'financials' && isOwner && (
+            <div className="space-y-6">
+              <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SalesChart
+                  data={trends}
+                  currency={currentUser?.currency || 'ZAR'}
+                  selectedDays={selectedDays}
+                  onDaysChange={(d) => {
+                    setSelectedDays(d);
+                    fetchDashboardData(dateFilter.startDate, dateFilter.endDate, d);
+                  }}
+                />
+                <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
+              </div>
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 3: INVENTORY & DEAD STOCK RADAR VIEW                   */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'inventory' && (
+            <div className="space-y-6">
+              {isOwner && <DeadStockCard products={deadStock} currency={currentUser?.currency || 'ZAR'} />}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Shelf Inventory & Price Management</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Quickly adjust live stock numbers and price tags</p>
+                </div>
+                <button
+                  onClick={() => setIsInventoryOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  Open Stock Editor
+                </button>
+              </div>
+              <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 4: AI PREDICTIVE FORECASTS VIEW                        */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'forecasts' && (
+            <div className="space-y-6">
+              <ForecastCards
+                forecasts={forecasts}
+                onOrderProduct={
+                  isOwner
+                    ? (prodId, prodName, suggestedQty) => {
+                        setPoModalData({
+                          isOpen: true,
+                          productId: prodId,
+                          productName: prodName,
+                          suggestedQty,
+                        });
+                      }
+                    : undefined
+                }
+              />
+              <AlertsList alerts={alerts} />
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 5: CUSTOMER CRM & RETENTION VIEW                       */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'customers' && (
+            <div className="space-y-6">
+              <TopCustomersTable customers={topCustomers} currency={currentUser?.currency || 'ZAR'} />
+              {isOwner && <KpiCards summary={summary} currency={currentUser?.currency || 'ZAR'} />}
+            </div>
+          )}
+
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {/* TAB 6: SUPPLIERS & PURCHASE ORDERS VIEW                    */}
+          {/* ═════════════════════════════════════════════════════════════ */}
+          {currentView === 'suppliers' && isOwner && (
+            <div className="space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Vendor & Distributor Management</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Manage supplier directory, lead times, and dispatch POs</p>
+                </div>
+                <button
+                  onClick={() => setIsSupplierOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-xs cursor-pointer"
+                >
+                  Manage Suppliers
+                </button>
+              </div>
+
+              <ForecastCards
+                forecasts={forecasts}
+                onOrderProduct={(prodId, prodName, suggestedQty) => {
                   setPoModalData({
                     isOpen: true,
                     productId: prodId,
                     productName: prodName,
                     suggestedQty,
                   });
-                }
-              : undefined
-          }
-        />
+                }}
+              />
+            </div>
+          )}
+        </main>
+      </div>
 
-        {/* 4. Middle Row: Sales Trend Chart & Smart Alerts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <SalesChart
-              data={trends}
-              currency={currentUser?.currency || 'ZAR'}
-              selectedDays={selectedDays}
-              onDaysChange={(d) => {
-                setSelectedDays(d);
-                fetchDashboardData(dateFilter.startDate, dateFilter.endDate, d);
-              }}
-            />
-          </div>
-          <div className="lg:col-span-1">
-            <AlertsList alerts={alerts} />
-          </div>
-        </div>
-
-        {/* 5. Bottom Row: Top Products Table & VIP Customers Table */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <TopProductsTable products={topProducts} currency={currentUser?.currency || 'ZAR'} />
-          </div>
-          <div>
-            <TopCustomersTable customers={topCustomers} currency={currentUser?.currency || 'ZAR'} />
-          </div>
-        </div>
-      </main>
-
-      {/* Modals */}
+      {/* Global Modals */}
       <UploadModal
         isOpen={isUploadOpen}
         onClose={() => setIsUploadOpen(false)}
