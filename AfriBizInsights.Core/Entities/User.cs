@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using AfriBizInsights.Core.Interfaces;
 
 namespace AfriBizInsights.Core.Entities;
@@ -30,7 +24,21 @@ public class User : ITenantEntity
     public string PasswordHash { get; set; } = string.Empty;
 
     [MaxLength(50)]
-    public string Role { get; set; } = "Owner"; // Owner, Manager, Staff
+    public string Role { get; set; } = "Owner"; // Owner, Manager, Cashier, Staff
+
+    // --- EMAIL VERIFICATION (6-Digit OTP) ---
+    public bool IsEmailVerified { get; set; } = true; // Default true so existing accounts aren't locked out!
+
+    [MaxLength(10)]
+    public string? EmailVerificationCode { get; set; }
+
+    public DateTime? VerificationCodeExpiresAt { get; set; }
+
+    // --- FORGOT PASSWORD RECOVERY (6-Digit OTP) ---
+    [MaxLength(10)]
+    public string? PasswordResetCode { get; set; }
+
+    public DateTime? ResetCodeExpiresAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

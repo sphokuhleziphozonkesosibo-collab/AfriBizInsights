@@ -8,7 +8,8 @@ export interface AuthUser {
   currency: string;
   fullName: string;
   email: string;
-  role: string; // Owner, Manager, Cashier, Staff
+  role: string;
+  isEmailVerified: boolean;
 }
 
 export interface RegisterDto {
@@ -24,6 +25,21 @@ export interface RegisterDto {
 export interface LoginDto {
   email: string;
   password: string;
+}
+
+export interface VerifyEmailDto {
+  email: string;
+  code: string;
+}
+
+export interface ForgotPasswordDto {
+  email: string;
+}
+
+export interface ResetPasswordDto {
+  email: string;
+  code: string;
+  newPassword: string;
 }
 
 export interface CreateStaffUserDto {
@@ -211,7 +227,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// --- AUTH & STAFF API ---
+// --- AUTH & EMAIL VERIFICATION API ---
 export const registerBusiness = async (dto: RegisterDto): Promise<AuthUser> => {
   const response = await apiClient.post<AuthUser>('/auth/register-business', dto);
   return response.data;
@@ -219,6 +235,26 @@ export const registerBusiness = async (dto: RegisterDto): Promise<AuthUser> => {
 
 export const loginUser = async (dto: LoginDto): Promise<AuthUser> => {
   const response = await apiClient.post<AuthUser>('/auth/login', dto);
+  return response.data;
+};
+
+export const verifyEmail = async (dto: VerifyEmailDto): Promise<AuthUser> => {
+  const response = await apiClient.post<AuthUser>('/auth/verify-email', dto);
+  return response.data;
+};
+
+export const resendVerificationCode = async (email: string): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/auth/resend-verification', { email });
+  return response.data;
+};
+
+export const requestForgotPassword = async (email: string): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/auth/forgot-password', { email });
+  return response.data;
+};
+
+export const resetPassword = async (dto: ResetPasswordDto): Promise<{ message: string }> => {
+  const response = await apiClient.post<{ message: string }>('/auth/reset-password', dto);
   return response.data;
 };
 
@@ -236,7 +272,7 @@ export const deleteStaffUser = async (userId: string): Promise<void> => {
   await apiClient.delete(`/auth/staff/${userId}`);
 };
 
-// --- ANALYTICS API (With Date Range Filtering) ---
+// --- ANALYTICS & TELEMETRY ---
 export const getDashboardSummary = async (
   startDate?: string | null,
   endDate?: string | null

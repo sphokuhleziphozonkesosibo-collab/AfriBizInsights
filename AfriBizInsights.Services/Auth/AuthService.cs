@@ -1,5 +1,6 @@
 ﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using AfriBizInsights.Core.DTOs.Auth;
 using AfriBizInsights.Core.Entities;
@@ -16,15 +17,18 @@ public class AuthService : IAuthService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ITenantProvider _tenantProvider;
+    private readonly IEmailService _emailService;
 
     public AuthService(
         ApplicationDbContext context,
         IConfiguration configuration,
-        ITenantProvider tenantProvider)
+        ITenantProvider tenantProvider,
+        IEmailService emailService)
     {
         _context = context;
         _configuration = configuration;
         _tenantProvider = tenantProvider;
+        _emailService = emailService;
     }
 
     private Guid GetAuthenticatedTenantId()
@@ -35,6 +39,11 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Authentication required. No valid business tenant context found.");
         }
         return tenantId.Value;
+    }
+
+    private static string GenerateSixDigitCode()
+    {
+        return RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
     }
 
     public async Task<AuthResponseDto> RegisterBusinessAsync(RegisterBusinessDto dto)
@@ -58,6 +67,8 @@ public class AuthService : IAuthService
             CreatedAt = DateTime.UtcNow
         };
 
+        var verificationCode = GenerateSixDigitCode();
+
         var user = new User
         {
             UserId = Guid.NewGuid(),
@@ -66,6 +77,9 @@ public class AuthService : IAuthService
             Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = "Owner",
+            IsEmailVerified = false, // New accounts require verification!
+            EmailVerificationCode = verificationCode,
+            VerificationCodeExpiresAt = DateTime.UtcNow.AddMinutes(15),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -73,18 +87,139 @@ public class AuthService : IAuthService
         await _context.Users.AddAsync(user);
         await _context.SaveChangesAsync();
 
-        var token = GenerateJwtToken(user, tenant);
+        // Dispatch real email via Resend
+        await _emailService.SendVerificationCodeAsync(user.Email, user.FullName, verificationCode);
 
         return new AuthResponseDto
         {
-            Token = token,
+            Token = string.Empty, // No JWT token until 6-digit code is confirmed
             TenantId = tenant.TenantId,
             BusinessName = tenant.BusinessName,
             Currency = tenant.Currency,
             FullName = user.FullName,
             Email = user.Email,
-            Role = user.Role
+            Role = user.Role,
+            IsEmailVerified = false
         };
+    }
+
+    public async Task<AuthResponseDto> VerifyEmailAsync(VerifyEmailDto dto)
+    {
+        var user = await _context.Users
+            .IgnoreQueryFilters()
+            .Include(u => u.Tenant)
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
+        if (user == null)
+        {
+            throw new Exception("No account found with this email address.");
+        }
+
+        if (user.IsEmailVerified)
+        {
+            var existingToken = GenerateJwtToken(user, user.Tenant!);
+            return new AuthResponseDto
+            {
+                Token = existingToken,
+                TenantId = user.TenantId,
+                BusinessName = user.Tenant!.BusinessName,
+                Currency = user.Tenant.Currency,
+                FullName = user.FullName,
+                Email = user.Email,
+                Role = user.Role,
+                IsEmailVerified = true
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(user.EmailVerificationCode) || user.EmailVerificationCode != dto.Code.Trim())
+        {
+            throw new Exception("Invalid 6-digit verification code. Please check your email or click 'Resend'.");
+        }
+
+        if (!user.VerificationCodeExpiresAt.HasValue || user.VerificationCodeExpiresAt.Value < DateTime.UtcNow)
+        {
+            throw new Exception("This verification code has expired (15-minute limit). Please click 'Resend'.");
+        }
+
+        // Activate user
+        user.IsEmailVerified = true;
+        user.EmailVerificationCode = null;
+        user.VerificationCodeExpiresAt = null;
+        await _context.SaveChangesAsync();
+
+        var token = GenerateJwtToken(user, user.Tenant!);
+
+        return new AuthResponseDto
+        {
+            Token = token,
+            TenantId = user.TenantId,
+            BusinessName = user.Tenant!.BusinessName,
+            Currency = user.Tenant.Currency,
+            FullName = user.FullName,
+            Email = user.Email,
+            Role = user.Role,
+            IsEmailVerified = true
+        };
+    }
+
+    public async Task ResendVerificationCodeAsync(ResendCodeDto dto)
+    {
+        var user = await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
+        if (user == null || user.IsEmailVerified) return;
+
+        var newCode = GenerateSixDigitCode();
+        user.EmailVerificationCode = newCode;
+        user.VerificationCodeExpiresAt = DateTime.UtcNow.AddMinutes(15);
+        await _context.SaveChangesAsync();
+
+        await _emailService.SendVerificationCodeAsync(user.Email, user.FullName, newCode);
+    }
+
+    public async Task ForgotPasswordAsync(ForgotPasswordDto dto)
+    {
+        var user = await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
+        if (user == null) return; // Do not leak whether an email exists for security
+
+        var resetCode = GenerateSixDigitCode();
+        user.PasswordResetCode = resetCode;
+        user.ResetCodeExpiresAt = DateTime.UtcNow.AddMinutes(15);
+        await _context.SaveChangesAsync();
+
+        await _emailService.SendPasswordResetCodeAsync(user.Email, user.FullName, resetCode);
+    }
+
+    public async Task ResetPasswordAsync(ResetPasswordDto dto)
+    {
+        var user = await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Email.ToLower() == dto.Email.ToLower().Trim());
+
+        if (user == null)
+        {
+            throw new Exception("Invalid request. User account not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(user.PasswordResetCode) || user.PasswordResetCode != dto.Code.Trim())
+        {
+            throw new Exception("Invalid 6-digit recovery code.");
+        }
+
+        if (!user.ResetCodeExpiresAt.HasValue || user.ResetCodeExpiresAt.Value < DateTime.UtcNow)
+        {
+            throw new Exception("This recovery code has expired. Please request a new one.");
+        }
+
+        // Update password with BCrypt
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.NewPassword);
+        user.PasswordResetCode = null;
+        user.ResetCodeExpiresAt = null;
+        await _context.SaveChangesAsync();
     }
 
     public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
@@ -104,6 +239,12 @@ public class AuthService : IAuthService
             throw new Exception("User account is not linked to an active business.");
         }
 
+        // Email Verification Guard
+        if (!user.IsEmailVerified)
+        {
+            throw new InvalidOperationException("EmailNotVerified");
+        }
+
         var token = GenerateJwtToken(user, user.Tenant);
 
         return new AuthResponseDto
@@ -114,7 +255,8 @@ public class AuthService : IAuthService
             Currency = user.Tenant.Currency,
             FullName = user.FullName,
             Email = user.Email,
-            Role = user.Role
+            Role = user.Role,
+            IsEmailVerified = true
         };
     }
 
@@ -164,6 +306,7 @@ public class AuthService : IAuthService
             Email = dto.Email.Trim().ToLower(),
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
             Role = validRole,
+            IsEmailVerified = true, // Store owner manually verified staff
             CreatedAt = DateTime.UtcNow
         };
 

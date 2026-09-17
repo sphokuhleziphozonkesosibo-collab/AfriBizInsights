@@ -4,6 +4,7 @@ using AfriBizInsights.Core.Interfaces;
 using AfriBizInsights.Infrastructure.Data;
 using AfriBizInsights.Services.Analytics;
 using AfriBizInsights.Services.Auth;
+using AfriBizInsights.Services.Email;
 using AfriBizInsights.Services.Ingestion;
 using AfriBizInsights.Services.ML;
 using AfriBizInsights.Services.Suppliers;
@@ -47,6 +48,7 @@ builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
 builder.Services.AddScoped<ISupplierService, SupplierService>();
 
 builder.Services.AddHttpClient<IMlServiceClient, MlServiceClient>();
+builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
 
 // 4. Secure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"]
